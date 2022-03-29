@@ -1,5 +1,5 @@
 //===----- Optimisation - Transformation pass -----===//
-#define DEBUG_TYPE "taggedptr_opt1"
+#define DEBUG_TYPE "remove_rtchks"
 
 ////
 #include "llvm/IR/LegacyPassManager.h"
@@ -569,12 +569,12 @@ namespace {
         }
     }
 
-    class TaggedPtrOptModule : public ModulePass {
+    class Remove_RTChks : public ModulePass {
 
       public:
         static char ID;
 
-        TaggedPtrOptModule() : ModulePass(ID) {}
+        Remove_RTChks() : ModulePass(ID) {}
         
         void getAnalysisUsage(AnalysisUsage &AU) const override{
 
@@ -670,15 +670,15 @@ namespace {
             return Changed;
         }
         
-    };  // end of TaggedPtrOptModule class
+    };  // end of Remove_RTChks class
 
-    char TaggedPtrOptModule::ID = 0;
+    char Remove_RTChks::ID = 0;
     
-    static RegisterPass<TaggedPtrOptModule> X("taggedptr_opt1", "TaggedPtrOptModule Pass 1", false, false);
+    static RegisterPass<Remove_RTChks> X("remove_rtchks", "Remove_RTChks Pass 1", false, false);
 
     static void registerPass(const PassManagerBuilder &,
                          legacy::PassManagerBase &PM) {
-        PM.add(new TaggedPtrOptModule());
+        PM.add(new Remove_RTChks());
     }
     //apply the module pass at this phase because EarlyAsPossible can cause UB
     static RegisterStandardPasses
