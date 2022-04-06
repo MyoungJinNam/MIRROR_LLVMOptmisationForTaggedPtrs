@@ -682,7 +682,8 @@ namespace {
     }
     //apply the module pass at this phase because EarlyAsPossible can cause UB
     static RegisterStandardPasses
-    RegisterMyPass(PassManagerBuilder::EP_ModuleOptimizerEarly,
+    //RegisterMyPass(PassManagerBuilder::EP_ModuleOptimizerEarly,
+    RegisterMyPass(PassManagerBuilder::EP_ScalarOptimizerLate,
                    registerPass);
 
     //to keep the pass available even in -O0
