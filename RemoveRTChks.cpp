@@ -277,7 +277,7 @@ namespace {
         virtual void collectAllocations ()
         {
             errs()<<"collectAllocations ---\n";
-            // TODO: maybe merge into one set? 
+            
             //- globals -//
             for (auto GV : F->getParent()->globals()) {
                 GlobalAllocs.insert(GV);
@@ -308,12 +308,14 @@ namespace {
         virtual void derivePerRegion(std::unordered_set<Value*> & Ptrs) 
         {
             for (auto Ptr : Ptrs) {
-                for (auto User = Ptr->user_begin(); User!=Ptr->user_end(); ++User) {
-                    // TODO: Just to check if replacement is correct. Refine later.
-                    if (isa<GetElementPtrInst>(*User)) {
-                        FNUntracked.insert(*User); 
-                    }
+              for (auto User = Ptr->user_begin(); User!=Ptr->user_end(); ++User) {
+                // TODO: Just to check if replacement is correct. 
+                // Refine later.
+                // if the ptr operand (operand(0)) is untracked
+                if (isa<GetElementPtrInst>(*User)) {
+                  FNUntracked.insert(*User); 
                 }
+              }
             }
         }
 
@@ -330,14 +332,8 @@ namespace {
         virtual void deriveSafePtrs ()
         {
             // insert all allocs
-            for (auto Local : Locals) {
-                FNSafePtrs.insert(&*Local);
-            }
-            for (auto Heap : HeapAllocs) {
-                FNSafePtrs.insert(&*Heap);
-            }
-            for (auto GV : GlobalAllocs) {
-                FNSafePtrs.insert(GV);
+            for (auto Ptr : FNUntracked) {
+                FNSafePtrs.insert(Ptr);
             }
             // TODO: fill this. derive.
         }
@@ -752,12 +748,14 @@ namespace {
                 
                 // TODO: Modify collectAllocations for spp
                 FInfo->collectAllocations(); 
+                
                 // TODO: Modify deriveUntrackedPtrs for spp
                 FInfo->deriveUntrackedPtrs();
                 
                 FInfo->deriveSafePtrs();
                  
                 Changed |= MiuMod.optGEPHooks (FInfo);
+                
                 errs() << "optGEPHooks_done\n"; 
 
                 Changed |= MiuMod.optMemAccessHooks (FInfo);              
