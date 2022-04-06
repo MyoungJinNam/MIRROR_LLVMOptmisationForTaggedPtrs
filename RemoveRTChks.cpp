@@ -289,7 +289,6 @@ namespace {
                     Locals.insert(&Ins);  
                     errs()<<"Local: "<<Ins<<"\n";
                 }
-                //- heap -//
                 //- TODO: this is for Miu. Add pm_alloc for spp -//
                 else if (isa<CallInst>(&Ins)) { 
                     CallInst * CI = cast<CallInst>(&Ins);
@@ -297,9 +296,15 @@ namespace {
                     if (!CalleeF) continue;
                      
                     //- Heap -// 
+                    //- volatile heap -//
                     if (isAllocationFn(CI, &TLIWP->getTLI(*CalleeF))) {
                         HeapAllocs.insert(&Ins);
-                        errs()<<"Heap: "<<*Ins<<"\n";
+                        errs()<<"V_Heap: "<<*Ins<<"\n";
+                    }
+                    //- persistent heap -//
+                    else if (isPMAllocationFn(CI)) {
+                        HeapAllocs.insert(&Ins);
+                        errs()<<"P_Heap: "<<*Ins<<"\n";
                     }
                 }
             } 
@@ -320,8 +325,7 @@ namespace {
         virtual void deriveUntrackedPtrs ()
         {
             errs()<<"\n--deriveUntrackedPtrs----\n";
-            //- TODO: disable some of them for Miu
-            
+            // Untracked by SPP  
             derivePerRegion (Locals);
             derivePerRegion (GlobalAllocs);
             derivePerRegion (HeapAllocs);
