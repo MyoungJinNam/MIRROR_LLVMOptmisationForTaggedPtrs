@@ -77,9 +77,12 @@ namespace {
     class FuncInfoRemRTChks : public MiuProject::FuncInfoAbstract {
 
       protected:
-        std::unordered_set <Constant*> GlobalAllocs;
-        std::unordered_set <Instruction*> Locals;
-        std::unordered_set <Instruction*> HeapAllocs;
+        //std::unordered_set <Constant*> GlobalAllocs;
+        //std::unordered_set <Instruction*> Locals;
+        //std::unordered_set <Instruction*> HeapAllocs;
+        
+        //- merging into one 
+        std::unordered_set <> Allocs;
         
         std::unordered_set <Value*> FNUntracked;
         std::unordered_set <Value*> FNSafePtrs;
