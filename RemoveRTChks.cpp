@@ -48,7 +48,9 @@
 #include <llvm/Analysis/LoopPass.h>
 #include <llvm/Analysis/ValueTracking.h>
 #include <llvm/Transforms/Utils/Local.h>
+
 /* MiuProject-related */
+
 #include "../../ModInfoOpt.h"
 #include "../../FuncInfoAbstract.h"
 
@@ -97,13 +99,43 @@ namespace {
         {
             return this->F;
         }
-
+       
+        // Accumulate FNSafePtrs. Or delete this func..
         virtual bool isSafePtr (Value * Ptr)
         {
             if (has_elem_o (this->FNSafePtrs, Ptr)) {
                 return true;
             }
             return false; 
+        }
+
+        virtual bool isSafeAccess (Value * Ptr)
+        {
+            Value * op = Ptr->stripPointerCasts();
+
+            if (isHookedAllocaOrGV(op, paddedGVs)) {
+                return SAFESTATICALLY;
+            }
+            Value * mallocop= ismalloc(Ptr);
+            if (mallocop!=nullptr) {
+
+                return SAFESTATICALLY;
+            }
+            if (GEPOperator * gep=dyn_cast<GEPOperator>(op)) {  
+                dbg("skip. safe gep\n";)
+                    return __isSafeAccess(gep, M, isMemAccess); 
+            }
+            else {
+
+                /// commented since I am doubtful if this will /////////
+                /// make a big difference for performance.      /////////
+                /// can try later                               /////////
+                //        if (checkSafeWithDomTree(op, dt)) { 
+                //            errs()<<"Read todo\n"; //TODO. bring case splitting (if load stuff) to here.
+                //            return true;
+                //        }
+            } 
+            return 0; 
         }
 
         void stripHook (CallInst * CI, Value * Ptr = nullptr)
@@ -399,7 +431,51 @@ namespace {
             }
             return false;
         }
-        
+
+        //- modified: __isSafeAccess in Framer.h.   -// 
+        //- Consider spacemiu repo.                 -//
+        virtual bool isInboundPtr (Value * Ptr) 
+        {
+            CallInst * ci= __isAllocation(gep->getPointerOperand(), M, gep); 
+            //ci is hook_alloca,hook_gv, or malloc call
+            if (ci==nullptr) {
+                return NOTSAFESTATICALLY; 
+            }
+            if (gep->hasAllZeroIndices()) { // base addr of alloca/gv
+                return SAFESTATICALLY; 
+            }
+            // ***** malloc s ***   
+            if (ci->getCalledFunction()->getName().equals("malloc")) {
+                return handleMallocStaticBounds(gep, ci, isMemAccess, M); 
+            }
+            // ***** malloc e ***
+
+            if (!isa<ConstantInt>(gep->getOperand(1)->stripPointerCasts())){
+                return NOTSAFESTATICALLY; // issafeaccess==0. 
+            }
+            if (!((cast<ConstantInt>(gep->getOperand(1)->stripPointerCasts()))->equalsInt(0))) {
+                return NOTSAFESTATICALLY; 
+            }
+            if (!gep->hasAllConstantIndices()) {
+                if (gep->getNumIndices()<=2) {
+                    return COMPAREIDXATRUNTIME; // issafeaccess==2. requiring runtime check 
+                } 
+                else {
+                    return NOTSAFESTATICALLY;
+                } 
+            }
+            // offset= base~ptr (two args. 2nd is gep's ptr.assignment)
+            unsigned offset= getStaticOffset(gep, &M.getDataLayout()); 
+            unsigned totalsize= getmysize(ci);
+            unsigned sizeToAccess= FramerGetBitwidth(cast<PointerType>(gep->getType())->getElementType(), &M.getDataLayout())/8;
+
+            return isStaticInBound(offset, 
+                    sizeToAccess,
+                    totalsize,
+                    isMemAccess);  
+
+        }
+
         virtual bool optGEPHooks (FuncInfoRemRTChks * FI) 
         {
             bool changed = false;
@@ -474,7 +550,7 @@ namespace {
                     FI->stripHook(CI, Ptr);
 
                 }   
-                else if (isSafePtr(Ptr)) {
+                else if (isSafePtr(Ptr) || isSafeAccess(Ptr)) {
                     FunctionCallee Rep;
                     StringRef TmpName= getUntagHookName(); 
                     getHookProto(Rep, TmpName);
