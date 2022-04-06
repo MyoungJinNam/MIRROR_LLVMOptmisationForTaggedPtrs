@@ -77,6 +77,7 @@ namespace {
     class FuncInfoRemRTChks : public MiuProject::FuncInfoAbstract {
 
       protected:
+        std::unordered_set <Constant*> GlobalAllocs;
         std::unordered_set <Instruction*> Locals;
         std::unordered_set <Instruction*> HeapAllocs;
         
@@ -99,14 +100,23 @@ namespace {
         {
             return this->F;
         }
-       
+        
+        virtual bool isLocalAlloc(Value * val) {
+            return has_elem_o(this->Locals, val);
+        }
+        virtual bool isGlobalAlloc(Value * val) {
+            return has_elem_o(this->GlobalAllocs, val);
+        }
+        virtual bool isHeapAlloc(Value * val) {
+            return has_elem_o(this->HeapAllocs, val);
+        }
+         
         // Accumulate FNSafePtrs. Or delete this func..
         virtual bool isSafePtr (Value * Ptr)
         {
-            if (has_elem_o (this->FNSafePtrs, Ptr)) {
-                return true;
-            }
-            return false; 
+            Value * RawPtr = Ptr->stripPointerCasts();
+            
+            return has_elem_o (FNSafePtrs, RawPtr);
         }
 
         virtual bool isSafeAccess (Value * Ptr)
@@ -263,34 +273,39 @@ namespace {
 
         virtual void collectAllocations ()
         {
+            errs()<<"collectAllocations ---\n";
+            // TODO: maybe merge into one set? 
+            //- globals -//
+            for (auto GV : F->getParent()->globals()) {
+                GlobalAllocs.insert(GV);
+                errs()<<"GV: "<<*GV<<"\n";
+            }
             for (auto & Ins : instructions(F)) {
+                //- locals -//
                 if (isa<AllocaInst>(&Ins)) {
                     Locals.insert(&Ins);  
-                    // TODO: maybe separate this operation?
-                    FNUntracked.insert(&Ins);
+                    errs()<<"Local: "<<Ins<<"\n";
                 }
-                // isallocation
+                //- heap -//
+                //- TODO: this is for Miu. Add pm_alloc for spp -//
                 else if (isa<CallInst>(&Ins)) { 
                     CallInst * CI = cast<CallInst>(&Ins);
                     Function * CalleeF = CI->getCalledFunction();
                     if (!CalleeF) continue;
-                    
+                     
+                    //- Heap -// 
                     if (isAllocationFn(CI, &TLIWP->getTLI(*CalleeF))) {
                         HeapAllocs.insert(&Ins);
-                        // TODO: maybe separate this operation?
-                        FNSafePtrs.insert(&Ins);
+                        errs()<<"Heap: "<<*Ins<<"\n";
                     }
                 }
-            }
+            } 
         }
 
-        virtual void deriveUntrackedPtrs ()
+        virtual void derivePerRegion(std::unordered_set<Value*> & Ptrs) 
         {
-            for (auto Local = Locals.begin(); Local != Locals.end(); Local++) {
-                AllocaInst * AI = dyn_cast<AllocaInst>(*Local);
-                if (!AI) continue; 
-
-                for (auto User = AI->user_begin(); User!=AI->user_end(); ++User) {
+            for (auto Ptr : Ptrs) {
+                for (auto User = Ptr->user_begin(); User!=Ptr->user_end(); ++User) {
                     // TODO: Just to check if replacement is correct. Refine later.
                     if (isa<GetElementPtrInst>(*User)) {
                         FNUntracked.insert(*User); 
@@ -298,16 +313,30 @@ namespace {
                 }
             }
         }
+
+        virtual void deriveUntrackedPtrs ()
+        {
+            errs()<<"\n--deriveUntrackedPtrs----\n";
+            //- TODO: disable some of them for Miu
+            
+            derivePerRegion (Locals);
+            derivePerRegion (GlobalAllocs);
+            derivePerRegion (HeapAllocs);
+        }
         
         virtual void deriveSafePtrs ()
         {
-            // TODO: fill this
+            // insert all allocs
             for (auto Local : Locals) {
                 FNSafePtrs.insert(&*Local);
             }
             for (auto Heap : HeapAllocs) {
                 FNSafePtrs.insert(&*Heap);
             }
+            for (auto GV : GlobalAllocs) {
+                FNSafePtrs.insert(GV);
+            }
+            // TODO: fill this. derive.
         }
         
         void addFNUntracked (Value * Ptr)
@@ -717,8 +746,12 @@ namespace {
                 FuncInfoRemRTChks * FInfo = new FuncInfoRemRTChks(&*F);
                 
                 FInfo->setTLIWP(TLIWP);
+                
+                // TODO: Modify collectAllocations for spp
                 FInfo->collectAllocations(); 
+                // TODO: Modify deriveUntrackedPtrs for spp
                 FInfo->deriveUntrackedPtrs();
+                
                 FInfo->deriveSafePtrs();
                  
                 Changed |= MiuMod.optGEPHooks (FInfo);
