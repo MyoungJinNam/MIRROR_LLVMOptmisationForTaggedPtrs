@@ -89,7 +89,7 @@ namespace {
         //- constructor, destructor -//
         HookInfoMiu (StringRef & str) : MiuProject::HookInfoAbstract (str) 
         {
-            //this->Prefix = str;
+            this->Prefix = str;
             errs()<<" ------> HookInfoMiu_constructor_called\n";
              
         } 
