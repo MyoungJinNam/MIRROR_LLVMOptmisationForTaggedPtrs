@@ -54,6 +54,7 @@
 
 #include "../../ModInfoOpt.h"
 #include "../../FuncInfoAbstract.h"
+#include "../../HookInfoAbstract.h"
 
 #include <iostream>
 #include <map>
@@ -75,6 +76,152 @@ using namespace MiuProject;
     
 namespace {
     
+    class HookInfoMiu : public MiuProject::HookInfoAbstract {
+      
+      protected: 
+        
+        StringRef ChkBoundHookName = "";
+        StringRef UpdatePtrHookName = "";
+        StringRef UntagHookName = "";
+        StringRef AllocHookName = "";
+
+      public: 
+        //- constructor, destructor -//
+        HookInfoMiu (StringRef & str) : MiuProject::HookInfoAbstract (str) 
+        {
+            //this->Prefix = str;
+            errs()<<" ------> HookInfoMiu_constructor_called\n";
+             
+        } 
+        virtual ~HookInfoMiu() {}    
+        
+        virtual void setChkBoundHookName (StringRef & Str) 
+        {
+            this->ChkBoundHookName = Str;
+        }
+        
+        virtual void setUpdatePtrHookName (StringRef & Str) 
+        {
+            this->UpdatePtrHookName = Str;
+        }
+        
+        virtual void setUntagHookName (StringRef & Str) 
+        {
+            this->UntagHookName = Str;
+        }
+
+        virtual void setAllocHookName (StringRef & Str) 
+        {
+            this->AllocHookName = Str;
+        }
+        virtual StringRef getUntagHookName ()
+        {
+            return this->UntagHookName;
+        }
+        
+        //- check hook funcs -//
+        virtual bool isCheckBoundHookName (StringRef & Str) 
+        {
+            if (Str.equals(this->ChkBoundHookName)) return true;
+            return false;
+        }
+         
+        virtual bool isUpdatePtrHookName (StringRef & Str) 
+        {
+            if (Str.equals(this->UpdatePtrHookName)) return true;
+            return false;
+        }
+        
+        virtual bool isUntagHookName (StringRef & Str) 
+        {
+            if (Str.equals(this->UntagHookName)) return true;
+            return false;
+        }
+
+        virtual bool isAllocHookName (StringRef & Str) 
+        {
+            if (Str.equals(this->AllocHookName)) return true;
+            return false;
+        }
+        
+        //- check if it is call hook -// 
+        virtual bool isCheckBoundCallHook (Instruction * Ins)
+        {
+            if (!isCallHook(Ins)) { return false; }
+            StringRef HookName = cast<CallInst>(Ins)->getCalledFunction()->getName();
+            if (isCheckBoundHookName(HookName)) { return true; }
+            return false; 
+        }
+        virtual bool isUntagCallHook (Instruction * Ins)
+        {
+            if (!isCallHook(Ins)) { return false; }
+            StringRef HookName = cast<CallInst>(Ins)->getCalledFunction()->getName();
+            if (isUntagHookName(HookName)) { return true; }
+            return false; 
+        }
+        
+        virtual bool isUpdatePtrCallHook (Instruction * Ins)
+        {
+            if (!isCallHook(Ins)) { return false; }
+            StringRef HookName = cast<CallInst>(Ins)->getCalledFunction()->getName();
+            if (isUpdatePtrHookName(HookName)) { return true; }
+            return false; 
+        }
+        
+        virtual bool isUntracked (Value * Val)
+        {
+            auto search = Untracked.find(Val);
+            if (search != Untracked.end()) {
+                return true;
+            }
+            return false;
+        }
+        
+        //- modified: __isSafeAccess in Framer.h.   -// 
+        //- Consider spacemiu repo.                 -//
+       /* virtual bool isInboundPtr (Value * Ptr) 
+        {
+            CallInst * ci= __isAllocation(gep->getPointerOperand(), M, gep); 
+            //ci is hook_alloca,hook_gv, or malloc call
+            if (ci==nullptr) {
+                return NOTSAFESTATICALLY; 
+            }
+            if (gep->hasAllZeroIndices()) { // base addr of alloca/gv
+                return SAFESTATICALLY; 
+            }
+            // ***** malloc s ***   
+            if (ci->getCalledFunction()->getName().equals("malloc")) {
+                return handleMallocStaticBounds(gep, ci, isMemAccess, M); 
+            }
+            // ***** malloc e ***
+
+            if (!isa<ConstantInt>(gep->getOperand(1)->stripPointerCasts())){
+                return NOTSAFESTATICALLY; // issafeaccess==0. 
+            }
+            if (!((cast<ConstantInt>(gep->getOperand(1)->stripPointerCasts()))->equalsInt(0))) {
+                return NOTSAFESTATICALLY; 
+            }
+            if (!gep->hasAllConstantIndices()) {
+                if (gep->getNumIndices()<=2) {
+                    return COMPAREIDXATRUNTIME; // issafeaccess==2. requiring runtime check 
+                } 
+                else {
+                    return NOTSAFESTATICALLY;
+                } 
+            }
+            // offset= base~ptr (two args. 2nd is gep's ptr.assignment)
+            unsigned offset= getStaticOffset(gep, &M.getDataLayout()); 
+            unsigned totalsize= getmysize(ci);
+            unsigned sizeToAccess= FramerGetBitwidth(cast<PointerType>(gep->getType())->getElementType(), &M.getDataLayout())/8;
+
+            return isStaticInBound(offset, 
+                    sizeToAccess,
+                    totalsize,
+                    isMemAccess);  
+
+        } 
+    };
+
     class FuncInfoRemRTChks : public MiuProject::FuncInfoAbstract {
 
       protected:
@@ -359,20 +506,26 @@ namespace {
       protected:
        
         //FuncInfoRemRTChks * CurFuncInfo; 
+        /*
         StringRef ChkBoundHookName = "";
         StringRef UpdatePtrHookName = "";
         StringRef UntagHookName = "";
         StringRef AllocHookName = "";
+        */
+        HookInfo * hookinfo = nullptr;
 
       public:  
         
         ModInfoOptRMChks (Module * M, StringRef & prefix) : MiuProject::ModInfoOpt (M, prefix) {} 
         virtual ~ModInfoOptRMChks() {}    
-
-        //virtual bool optGepHooks (FuncInfoRemRTChks * FI);
-        //virtual void initialiseUntracked ();
         
+        virtual setHookInfo (StringRef & prefix)
+        {
+            HookInfo =  
+        }
+
         //- Set hook funcs -//
+        /*
         virtual void setChkBoundHookName (StringRef & Str) 
         {
             this->ChkBoundHookName = Str;
@@ -445,6 +598,7 @@ namespace {
             if (isUpdatePtrHookName(HookName)) { return true; }
             return false; 
         }
+        */
         
         virtual bool isUntracked (Value * Val)
         {
@@ -454,6 +608,7 @@ namespace {
             }
             return false;
         }
+
 
         //- modified: __isSafeAccess in Framer.h.   -// 
         //- Consider spacemiu repo.                 -//
@@ -704,10 +859,12 @@ namespace {
             //-  ModInfoType instance creating -//
             
             StringRef HookPrefix= "MIU_";
+            
+            // TODO: Separate HookInfo from ModInfo 
             ModInfoOptRMChks MiuMod(&M, HookPrefix);
             
             //-  TLI setting   -//
-            
+            // TODO: redundant? Trim initialising 
             auto GetTLI = [this](Function &F) -> TargetLibraryInfo & {
                 return this->getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
             };
@@ -715,6 +872,8 @@ namespace {
                 = &getAnalysis<TargetLibraryInfoWrapperPass>();
 
             MiuMod.setTLI(GetTLI);
+            
+            ModInfoOptRMChks MiuMod(&M, HookPrefix);
             
             //TODO: Clean the code (replace above with following_
             MiuMod.initialiseModInfo(GetTLI);
