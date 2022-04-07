@@ -1,6 +1,12 @@
 //===----- Optimisation - Transformation pass -----===//
 #define DEBUG_TYPE "remove_rtchks"
 
+/* MiuProject-related */
+// TODO: make it self-contained under the branch
+#include "../../ModInfoOpt.h"
+#include "../../FuncInfoAbstract.h"
+#include "../../HookInfoAbstract.h"
+
 ////
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Pass.h"
@@ -49,12 +55,6 @@
 #include <llvm/Analysis/ValueTracking.h>
 #include <llvm/Transforms/Utils/Local.h>
 
-/* MiuProject-related */
-// TODO: make it self-contained under the branch
-
-#include "../../ModInfoOpt.h"
-#include "../../FuncInfoAbstract.h"
-#include "../../HookInfoAbstract.h"
 
 #include <iostream>
 #include <map>
@@ -87,11 +87,20 @@ namespace {
 
       public: 
         //- constructor, destructor -//
-        HookInfoMiu (StringRef & str) : MiuProject::HookInfoAbstract (str) 
+        HookInfoMiu (StringRef & str, Module * mod) : MiuProject::HookInfoAbstract (str, mod) 
         {
             //this->Prefix = str;
-            errs()<<" ------> HookInfoMiu_constructor_called\n";
-             
+            assert(!str.empty());
+
+            this->ChkBoundHookName = "MIU_checkbound";
+            this->UpdatePtrHookName = "MIU_updatetag";
+            this->UntagHookName = "MIU_cleantag";
+            this->AllocHookName = "MIU_instr_heap_alloc";
+            
+            //setChkBoundHookName(Twine(str + ChkBoundSuffix));
+            //setUpdatePtrHookName(Twine(str + UpdatePtrSuffix));
+            //setUntagHookName (StringRef(str + UntagSuffix));
+            //setAllocHookName (StringRef(str + AllocSuffix));
         } 
         virtual ~HookInfoMiu() {}    
         
@@ -168,18 +177,56 @@ namespace {
             return false; 
         }
         
-        virtual bool isUntracked (Value * Val)
+        virtual bool getHookProto_Untag (FunctionCallee & Hook)
         {
-            auto search = Untracked.find(Val);
-            if (search != Untracked.end()) {
-                return true;
-            }
-            return false;
+            Type* VoidPTy= Type::getInt8PtrTy(*CXT);
+            std::vector <Type*> ParamTypes = {VoidPTy};
+            FunctionType * FTY= FunctionType::get(VoidPTy, ParamTypes, false);
+            Hook = M->getOrInsertFunction(this->UntagHookName, FTY); 
+            
+            return true; 
         }
         
+        virtual bool getHookProto (FunctionCallee & Hook, StringRef & HookName)
+        {
+            bool changed = false;
+
+            std::vector <Type*> ParamTypes;
+            FunctionType * FTY= nullptr;
+
+            if (HookName.equals("MIU_main_prologue_base")) {
+
+                Type* VoidTy= Type::getVoidTy(*CXT);
+                FTY= FunctionType::get(VoidTy, ParamTypes, false);
+                changed = true;
+            } 
+            else if (HookName.equals("MIU_main_prologue_tychk_wrap")) {
+
+                Type* VoidTy= Type::getVoidTy(*CXT);
+                Type* VoidPTy= Type::getInt8PtrTy(*CXT);
+                Type* Int16Ty= Type::getInt16Ty(*CXT);
+                Type* Int32Ty= Type::getInt32Ty(*CXT);
+
+                ParamTypes.push_back(VoidPTy);    
+                ParamTypes.push_back(Int16Ty);   
+                ParamTypes.push_back(Int16Ty);   
+                ParamTypes.push_back(Int16Ty);   
+                ParamTypes.push_back(Int32Ty);   
+                ParamTypes.push_back(VoidPTy);    
+
+                FTY= FunctionType::get(VoidTy, ParamTypes, false);
+                changed = true;
+            }
+            else {;}
+
+            Hook= M->getOrInsertFunction(HookName, FTY);
+            return changed;
+        }  
         //- modified: __isSafeAccess in Framer.h.   -// 
         //- Consider spacemiu repo.                 -//
-       /* virtual bool isInboundPtr (Value * Ptr) 
+        
+        /* 
+        virtual bool isInboundPtr (Value * Ptr) 
         {
             CallInst * ci= __isAllocation(gep->getPointerOperand(), M, gep); 
             //ci is hook_alloca,hook_gv, or malloc call
@@ -219,7 +266,8 @@ namespace {
                     totalsize,
                     isMemAccess);  
 
-        } 
+        }
+        */ 
     };
 
     class FuncInfoRemRTChks : public MiuProject::FuncInfoAbstract {
@@ -370,14 +418,14 @@ namespace {
                         if (OpIdx < 0) continue;
 
                         // todo: change BCI's ptr operand to new hook
-                        assert(iUserOfBCI->getOperand(OpIdx)->getType()==Ptr->getType()); 
+                        //assert(iUserOfBCI->getOperand(OpIdx)->getType()==Ptr->getType()); 
 
                         // TODO: is this correct??? ************
 
                         // Replaced hook call, not setoperand.
-                        //iUserOfBCI->setOperand(OpIdx, Ptr); 
+                        iUserOfBCI->setOperand(OpIdx, newCI); 
 
-                        dbg(errs()<<"- BCI's newUser:  "<<*iUserOfBCI<<"\n";)
+                        dbg(errs()<<"- BCI's newiUser:  "<<*iUserOfBCI<<"\n";)
                     }
                 }
                 else {
@@ -448,14 +496,15 @@ namespace {
         virtual void derivePerRegion(std::unordered_set<Value*> & Ptrs) 
         {
             for (auto Ptr : Ptrs) {
-              dbg(errs()<<"* Ptr: "<<*Ptr<<"\n");
+              dbg(errs()<<"* add_FNUntrack: "<<*Ptr<<"\n");
+              FNUntracked.insert(Ptr); 
+              
               for (auto User = Ptr->user_begin(); User!=Ptr->user_end(); ++User) {
                 // TODO: Just to check if replacement is correct. 
                 // Refine later.
                 // if the ptr operand (operand(0)) is untracked
-                dbg(errs()<<"  -user: "<<*User<<"\n");
                 if (isa<GetElementPtrInst>(*User)) {
-                  dbg(errs()<<"   -> add_to_FNUntraked\n");
+                  dbg(errs()<<"  - add_FNUntrack: "<<**User<<"\n");
                   FNUntracked.insert(*User); 
                 }
               }
@@ -512,18 +561,22 @@ namespace {
         StringRef UntagHookName = "";
         StringRef AllocHookName = "";
         */
-        HookInfo * hookinfo = nullptr;
+        HookInfoAbstract * hookinfo = nullptr;
 
       public:  
         
-        ModInfoOptRMChks (Module * M, StringRef & prefix) : MiuProject::ModInfoOpt (M, prefix) {} 
-        virtual ~ModInfoOptRMChks() {}    
-        
-        virtual setHookInfo (StringRef & prefix)
+        ModInfoOptRMChks (Module * M, StringRef & prefix) : MiuProject::ModInfoOpt (M, prefix) 
         {
-            HookInfo =  
+            this->hookinfo = new HookInfoMiu(prefix, M);  
+            errs()<<" ------- ModInfoOptRMChks_constructor_called\n";
+        } 
+        HookInfoMiu * getHookInfo()
+        {
+            return (HookInfoMiu*)hookinfo; 
         }
 
+        virtual ~ModInfoOptRMChks() {}    
+        
         //- Set hook funcs -//
         /*
         virtual void setChkBoundHookName (StringRef & Str) 
@@ -662,7 +715,7 @@ namespace {
 
             for (auto & Ins : instructions(F)) {
 
-                if (!isUpdatePtrCallHook (&Ins)) {  continue; } 
+                if (!this->getHookInfo()->isUpdatePtrCallHook (&Ins)) {  continue; } 
 
                 CallInst * CI = cast<CallInst>(&Ins);
 
@@ -707,7 +760,7 @@ namespace {
 
             for (auto & Ins : instructions(F)) {
 
-                if (!isCheckBoundCallHook(&Ins)) { continue; }
+                if (!getHookInfo()->isCheckBoundCallHook(&Ins)) { continue; }
                 CallInst * CI = cast<CallInst>(&Ins);
 
                 dbg(errs()<<"\n-- isCheckBoundCallHook_ins: "<<*CI<<" -------- \n";);
@@ -721,22 +774,19 @@ namespace {
                 // TODO: Important!: this is only for SPP
                 if (!Ptr) {      
                     FI->addFNUntracked(Ptr);
+                    dbg(errs()<<"   -> not_inst. Addto_Un_tracked. (spp_only!) "<<*Ptr<<"\n";);
                 }
-                dbg(errs()<<"   -> not_inst(spp_only!) "<<*Ptr<<"\n";);
-                 
                 if (isUntracked(Ptr) || FI->isFNUntracked(Ptr)) {
-
                     dbg(errs()<<"-> Untracked_ptr. Strip.\n";);
                     FI->stripHook(CI, Ptr);
-
                 }   
                 //else if (isSafePtr(Ptr) || isSafeAccess(Ptr)) {
                 else if (isSafePtr(Ptr)) {
                     dbg(errs()<<"-> safe_ptr. Replace.\n";);
                     FunctionCallee Rep;
-                    StringRef TmpName= getUntagHookName(); 
-                    dbg(errs()<<"Hook_name: "<<TmpName<<"\n");
-                    bool GotProto= getHookProto(Rep, TmpName);
+                    StringRef TmpName= this->getHookInfo()->getUntagHookName(); 
+                    dbg(errs()<<"new_Hook: "<<TmpName<<"\n");
+                    bool GotProto= getHookInfo()->getHookProto_Untag(Rep);
                     assert(GotProto);
                     FI->replaceHook(CI, Rep, PtrIdx);
                 }
@@ -760,7 +810,7 @@ namespace {
 
             for (auto & Ins : instructions(F)) {
                 
-                if (!isUntagCallHook(&Ins)) { continue; }
+                if (!getHookInfo()->isUntagCallHook(&Ins)) { continue; }
 
                 CallInst * CI = cast<CallInst>(&Ins);
                 dbg(errs()<<"\nUntagHook: "<<*CI<<"\n";);
@@ -873,12 +923,13 @@ namespace {
 
             MiuMod.setTLI(GetTLI);
             
-            ModInfoOptRMChks MiuMod(&M, HookPrefix);
+            //ModInfoOptRMChks MiuMod(&M, HookPrefix);
             
             //TODO: Clean the code (replace above with following_
             MiuMod.initialiseModInfo(GetTLI);
             
             //-  Set hook names  -//
+            /*
             StringRef ChkBoundHookName = "MIU_checkbound";
             StringRef UpdatePtrHookName = "MIU_updatetag";
             StringRef UntagHookName = "MIU_cleantag";
@@ -888,7 +939,8 @@ namespace {
             MiuMod.setUpdatePtrHookName(UpdatePtrHookName);
             MiuMod.setUntagHookName(UntagHookName);
             MiuMod.setAllocHookName(AllocHookName);
-            
+            */
+
             // TODO: 
             //MiuMod.initialiseUntracked ();
     
@@ -918,10 +970,10 @@ namespace {
                  
                 Changed |= MiuMod.optGEPHooks (FInfo);
                 
-                errs() << "optGEPHooks_done\n"; 
+                errs() << "--------------- optGEPHooks_done --------\n"; 
 
                 Changed |= MiuMod.optMemAccessHooks (FInfo);              
-                errs()<<"optMemAccess_done\n"; 
+                errs()<<"optMemAccess_done_DISABLED. ENABLE LATER! TODO. \n"; 
                 
                 delete FInfo;
 
