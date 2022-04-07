@@ -375,7 +375,7 @@ namespace {
         virtual ~ModInfoOptRMChks() {}    
 
         //virtual bool optGepHooks (FuncInfoRemRTChks * FI);
-        virtual void initialiseUntracked ();
+        //virtual void initialiseUntracked ();
         
         //- Set hook funcs -//
         virtual void setChkBoundHookName (StringRef & Str) 
@@ -663,6 +663,7 @@ namespace {
         }
     }; // end of class
     
+    /* 
     void ModInfoOptRMChks::initialiseUntracked ()
     {
         // for SPP, untrack Locals
@@ -672,6 +673,7 @@ namespace {
            Untracked.insert(&GV); 
         }
     }
+    */
 
     class Remove_RTChks : public ModulePass {
 
@@ -728,7 +730,7 @@ namespace {
             MiuMod.setAllocHookName(AllocHookName);
             
             // TODO: 
-            MiuMod.initialiseUntracked ();
+            //MiuMod.initialiseUntracked ();
     
             //Track the external functions first &
             //Track the pointers derived from pmemobj_direct_inline
