@@ -50,6 +50,7 @@
 #include <llvm/Transforms/Utils/Local.h>
 
 /* MiuProject-related */
+// TODO: make it self-contained under the branch
 
 #include "../../ModInfoOpt.h"
 #include "../../FuncInfoAbstract.h"
@@ -77,12 +78,11 @@ namespace {
     class FuncInfoRemRTChks : public MiuProject::FuncInfoAbstract {
 
       protected:
-        //std::unordered_set <Constant*> GlobalAllocs;
-        //std::unordered_set <Instruction*> Locals;
-        //std::unordered_set <Instruction*> HeapAllocs;
+        std::unordered_set <Value*> GlobalAllocs;
+        std::unordered_set <Value*> Locals;
+        std::unordered_set <Value*> HeapAllocs;
         
         //- merging into one 
-        std::unordered_set <> Allocs;
         
         std::unordered_set <Value*> FNUntracked;
         std::unordered_set <Value*> FNSafePtrs;
@@ -95,7 +95,7 @@ namespace {
         FuncInfoRemRTChks (Function * F) : MiuProject::FuncInfoAbstract (F) 
         {
             this->F = F;
-            errs()<<"FuncInfoRemRTChks_instance_created\n";
+            //errs()<<"FuncInfoRemRTChks_instance_created\n";
         } 
         virtual ~FuncInfoRemRTChks() {}    
         
@@ -104,29 +104,19 @@ namespace {
             return this->F;
         }
         
-        virtual bool isLocalAlloc(Value * val) {
-            return has_elem_o(this->Locals, val);
-        }
-        virtual bool isGlobalAlloc(Value * val) {
-            return has_elem_o(this->GlobalAllocs, val);
-        }
-        virtual bool isHeapAlloc(Value * val) {
-            return has_elem_o(this->HeapAllocs, val);
-        }
-         
         // Accumulate FNSafePtrs. Or delete this func..
         virtual bool isSafePtr (Value * Ptr)
         {
             Value * RawPtr = Ptr->stripPointerCasts();
-            
             return has_elem_o (FNSafePtrs, RawPtr);
         }
-
+        /*
         virtual bool isSafeAccess (Value * Ptr)
         {
             Value * op = Ptr->stripPointerCasts();
 
-            if (isHookedAllocaOrGV(op, paddedGVs)) {
+            //if (isHookedAllocaOrGV(op, paddedGVs)) {
+            if () {
                 return SAFESTATICALLY;
             }
             Value * mallocop= ismalloc(Ptr);
@@ -150,6 +140,7 @@ namespace {
             } 
             return 0; 
         }
+        */
 
         void stripHook (CallInst * CI, Value * Ptr = nullptr)
         { 
@@ -207,7 +198,8 @@ namespace {
 
             CallInst* newCI = B.CreateCall(Callee, CI->getOperand(OpIdx));
             std::vector<User*> Users(CI->user_begin(), CI->user_end());
-
+            
+            dbg(errs()<<"replace_newCI: "<<*newCI<<"\n");            
             for (auto User : Users){
                 Instruction * iUser = dyn_cast<Instruction>(User); 
                 //- iUser is BCI or CI's User -//
@@ -279,8 +271,9 @@ namespace {
             errs()<<"collectAllocations ---\n";
             
             //- globals -//
-            for (auto GV : F->getParent()->globals()) {
-                GlobalAllocs.insert(GV);
+            Module * mod = F->getParent(); 
+            for (auto GV = mod->global_begin(); GV!=mod->global_end(); GV++) {
+                GlobalAllocs.insert(&*GV);
                 errs()<<"GV: "<<*GV<<"\n";
             }
             for (auto & Ins : instructions(F)) {
@@ -299,20 +292,23 @@ namespace {
                     //- Heap -// 
                     if (isAllocationFn(CI, &TLIWP->getTLI(*CalleeF))) {
                         HeapAllocs.insert(&Ins);
-                        errs()<<"Heap: "<<*Ins<<"\n";
+                        errs()<<"Heap: "<<Ins<<"\n";
                     }
                 }
             } 
         }
-
+        
         virtual void derivePerRegion(std::unordered_set<Value*> & Ptrs) 
         {
             for (auto Ptr : Ptrs) {
+              dbg(errs()<<"* Ptr: "<<*Ptr<<"\n");
               for (auto User = Ptr->user_begin(); User!=Ptr->user_end(); ++User) {
                 // TODO: Just to check if replacement is correct. 
                 // Refine later.
                 // if the ptr operand (operand(0)) is untracked
+                dbg(errs()<<"  -user: "<<*User<<"\n");
                 if (isa<GetElementPtrInst>(*User)) {
+                  dbg(errs()<<"   -> add_to_FNUntraked\n");
                   FNUntracked.insert(*User); 
                 }
               }
@@ -323,10 +319,9 @@ namespace {
         {
             errs()<<"\n--deriveUntrackedPtrs----\n";
             //- TODO: disable some of them for Miu
-            
-            derivePerRegion (Locals);
-            derivePerRegion (GlobalAllocs);
-            derivePerRegion (HeapAllocs);
+            derivePerRegion(Locals);
+            derivePerRegion(GlobalAllocs);
+            derivePerRegion(HeapAllocs);
         }
         
         virtual void deriveSafePtrs ()
@@ -462,7 +457,7 @@ namespace {
 
         //- modified: __isSafeAccess in Framer.h.   -// 
         //- Consider spacemiu repo.                 -//
-        virtual bool isInboundPtr (Value * Ptr) 
+       /* virtual bool isInboundPtr (Value * Ptr) 
         {
             CallInst * ci= __isAllocation(gep->getPointerOperand(), M, gep); 
             //ci is hook_alloca,hook_gv, or malloc call
@@ -503,6 +498,7 @@ namespace {
                     isMemAccess);  
 
         }
+        */
 
         virtual bool optGEPHooks (FuncInfoRemRTChks * FI) 
         {
@@ -559,29 +555,34 @@ namespace {
                 if (!isCheckBoundCallHook(&Ins)) { continue; }
                 CallInst * CI = cast<CallInst>(&Ins);
 
-                dbg(errs()<<"\n isCheckBoundCallHook: "<<*CI<<"\n";);
-
+                dbg(errs()<<"\n-- isCheckBoundCallHook_ins: "<<*CI<<" -------- \n";);
                 unsigned PtrIdx = 0; 
                 Value * Op = CI->getOperand (PtrIdx);
                 Value * Ptr = dyn_cast<Instruction>(Op->stripPointerCasts());
                 
-                dbg(errs()<<"Ptr:  "<<*Ptr<<"\n";);
+                dbg(errs()<<"bound_Ptr:  "<<*Ptr<<"\n";);
                 
                 // TODO: perform this during initializing vector
+                // TODO: Important!: this is only for SPP
                 if (!Ptr) {      
                     FI->addFNUntracked(Ptr);
                 }
+                dbg(errs()<<"   -> not_inst(spp_only!) "<<*Ptr<<"\n";);
                  
                 if (isUntracked(Ptr) || FI->isFNUntracked(Ptr)) {
 
-                    dbg(errs()<<"-> Strip:: Untracked or Locals\n";);
+                    dbg(errs()<<"-> Untracked_ptr. Strip.\n";);
                     FI->stripHook(CI, Ptr);
 
                 }   
-                else if (isSafePtr(Ptr) || isSafeAccess(Ptr)) {
+                //else if (isSafePtr(Ptr) || isSafeAccess(Ptr)) {
+                else if (isSafePtr(Ptr)) {
+                    dbg(errs()<<"-> safe_ptr. Replace.\n";);
                     FunctionCallee Rep;
                     StringRef TmpName= getUntagHookName(); 
-                    getHookProto(Rep, TmpName);
+                    dbg(errs()<<"Hook_name: "<<TmpName<<"\n");
+                    bool GotProto= getHookProto(Rep, TmpName);
+                    assert(GotProto);
                     FI->replaceHook(CI, Rep, PtrIdx);
                 }
                 else {;}
