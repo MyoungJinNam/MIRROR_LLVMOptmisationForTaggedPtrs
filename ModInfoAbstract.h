@@ -59,6 +59,16 @@ using namespace llvm;
 
 namespace MiuProject {
 
+    template < typename T>
+    static bool has_elem_o (std::unordered_set<T> & OST, T elem)
+    {
+        auto it= OST.find(elem);
+        if (it != OST.end()) {
+            return true;       
+        }
+        return false;
+    }
+
     class ModInfoAbstract {
       
       protected:
@@ -77,10 +87,12 @@ namespace MiuProject {
         }
         virtual ~ModInfoAbstract() = 0;
         
+        /*
         virtual void resetMainPrologueHook (StringRef & Fname)
         {
             this->MainPrologueName= Fname; 
         }
+        */
         void setScalarEvolution(ScalarEvolution* SE) {
             this->SE = SE;
         }
@@ -107,14 +119,14 @@ namespace MiuProject {
             this->CXT = &(M->getContext());
             this->DL = &(M->getDataLayout());
             this->GetTLI= GetTLI; 
-            this->MainPrologueName = "MIU_main_prologue_base";
+            //this->MainPrologueName = "MIU_main_prologue_base";
         }
         virtual void initialiseModInfo ()
         {
             //this->SE = M->SE;
             this->CXT = &(M->getContext());
             this->DL = &(M->getDataLayout());
-            this->MainPrologueName = "MIU_main_prologue_base";
+            //this->MainPrologueName = "MIU_main_prologue_base";
         }
         
         /* 

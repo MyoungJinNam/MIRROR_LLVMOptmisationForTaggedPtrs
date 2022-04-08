@@ -20,7 +20,8 @@ namespace MiuProject {
         StringRef Prefix = "";
         unsigned NumRemovedHooks = 0;
         std::unordered_set <Value*> Untracked;
-
+        std::unordered_set <Function*> IgnoreFunctions;
+      
       public:
         
         ModInfoOpt(Module * M, StringRef & prefix) : ModInfoAbstract (M)

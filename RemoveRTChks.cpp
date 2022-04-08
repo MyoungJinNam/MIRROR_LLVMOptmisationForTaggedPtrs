@@ -79,6 +79,16 @@ using namespace MiuProject;
     
 namespace {
     
+    template < typename T>
+    static bool has_elem_o (unordered_set<T> & OST, T elem)
+    {
+        auto it= OST.find(elem);
+        if (it != OST.end()) {
+            return true;       
+        }
+        return false;
+    }
+
     class HookInfoMiu : public MiuProject::HookInfoAbstract {
       
       protected: 
@@ -101,7 +111,7 @@ namespace {
             this->UntagHookName = "MIU_cleantag";
             this->AllocHookName = "MIU_instr_heap_alloc";
             //- TODO: Handle name mangling. Should I move this to modinfo? 
-            this->PM_AllocFuncName = "pmemobj_direct_inline";
+            this->PMAllocFuncName = "pmemobj_direct_inline";
             
             assert(ChkBoundHookName.startswith(Prefix));
             assert(UpdatePtrHookName.startswith(Prefix));
@@ -147,11 +157,13 @@ namespace {
             return false;
         }
         
-        bool isPMAllocFunc (Function * F)
+        bool isPMAllocFunc (Function * Fn) 
         {
-            StringRef       
+            StringRef Fname = Fn->getName();
+            if (isPMAllocFuncName(Fname)) return true;
+            return false;
         }
-         
+        
         //- check if it is call hook -// 
         virtual bool isCheckBoundCallHook (Instruction * Ins)
         {
@@ -193,9 +205,6 @@ namespace {
     class FuncInfoRemRTChks : public MiuProject::FuncInfoAbstract {
 
       protected:
-        std::unordered_set <Value*> GlobalAllocs;
-        std::unordered_set <Value*> Locals;
-        std::unordered_set <Value*> HeapAllocs;
         
         //- merging into one 
         
@@ -218,6 +227,11 @@ namespace {
         {
             return this->F;
         }
+
+        // TODO: Make these set to protected and create member funcs to manipulate.  
+        std::unordered_set <Value*> GlobalAllocs;
+        std::unordered_set <Value*> Locals;
+        std::unordered_set <Value*> HeapAllocs;
         
         // Accumulate FNSafePtrs. Or delete this func..
         virtual bool isSafePtr (Value * Ptr)
@@ -380,43 +394,6 @@ namespace {
             this->RedundantChks.clear();
         }
 
-        virtual void collectAllocations ()
-        {
-            errs()<<"collectAllocations ---\n";
-            
-            //- globals -//
-            Module * mod = F->getParent(); 
-            for (auto GV = mod->global_begin(); GV!=mod->global_end(); GV++) {
-                GlobalAllocs.insert(&*GV);
-                errs()<<"GV: "<<*GV<<"\n";
-            }
-            for (auto & Ins : instructions(F)) {
-                //- locals -//
-                if (isa<AllocaInst>(&Ins)) {
-                    Locals.insert(&Ins);  
-                    errs()<<"Local: "<<Ins<<"\n";
-                }
-                //- heap -//
-                //- TODO: this is for Miu. Add pm_alloc for spp -//
-                else if (isa<CallInst>(&Ins)) { 
-                    CallInst * CI = cast<CallInst>(&Ins);
-                    Function * CalleeF = CI->getCalledFunction();
-                    if (!CalleeF) continue;
-                     
-                    //- Volatile Heap -// 
-                    if (isAllocationFn(CI, &TLIWP->getTLI(*CalleeF))) {
-                        HeapAllocs.insert(&Ins);
-                        errs()<<"Heap: "<<Ins<<"\n";
-                    }
-                    //- spp-specific -//
-                    else if (getHookInfo()->isPMAllocFunc(CalleeF)) {
-                        HeapAllocs.insert(&Ins);
-                        errs()<<"Heap: "<<Ins<<"\n";
-                    }
-                    else {;}
-                }
-            } 
-        }
         
         virtual void derivePerRegion(std::unordered_set<Value*> & Ptrs) 
         {
@@ -504,6 +481,44 @@ namespace {
                 return true;
             }
             return false;
+        }
+        
+        virtual void collectAllocations (FuncInfoRemRTChks * FInfo)
+        {
+            errs()<<"collectAllocations ---\n";
+            Function * Fn = FInfo->getFunction();
+
+            //- globals -//
+            for (auto GV = M->global_begin(); GV!=M->global_end(); GV++) {
+                FInfo->GlobalAllocs.insert(&*GV);
+                errs()<<"GV: "<<*GV<<"\n";
+            }
+            for (auto & Ins : instructions(Fn)) {
+                //- locals -//
+                if (isa<AllocaInst>(&Ins)) {
+                    FInfo->Locals.insert(&Ins);  
+                    errs()<<"Local: "<<Ins<<"\n";
+                }
+                //- heap -//
+                //- TODO: this is for Miu. Add pm_alloc for spp -//
+                else if (isa<CallInst>(&Ins)) { 
+                    CallInst * CI = cast<CallInst>(&Ins);
+                    Function * CalleeF = CI->getCalledFunction();
+                    if (!CalleeF) continue;
+                     
+                    //- Volatile Heap -// 
+                    if (isAllocationFn(CI, FInfo->getTLI(*CalleeF))) {
+                        FInfo->HeapAllocs.insert(&Ins);
+                        errs()<<"Heap: "<<Ins<<"\n";
+                    }
+                    //- spp-specific -//
+                    else if (getHookInfo()->isPMAllocFunc(CalleeF)) {
+                        FInfo->HeapAllocs.insert(&Ins);
+                        errs()<<"Heap: "<<Ins<<"\n";
+                    }
+                    else {;}
+                }
+            } 
         }
 
 
@@ -751,7 +766,7 @@ namespace {
             errs() <<">> RemoveCHKS_BB:: " << SrcFileName <<"\n";
             
             StringRef HookPrefix= "MIU_";
-            HookInfoMiu * hookinfo = new HookInfoMiu(HookPrefix, M);  
+            HookInfoMiu * hookinfo = new HookInfoMiu(HookPrefix, &M);  
             
             //-  ModInfo instance creating -//
             ModInfoOptRMChks MiuMod(&M, HookPrefix, hookinfo);
@@ -778,7 +793,9 @@ namespace {
             
             //- Running on Function -//  
             for (auto F = M.begin(); F != M.end(); ++F) {
-                
+                // TODO: No setting for IgnoreFunctions. Do something?
+                // e.g. spp branch: pmem-specific functions
+
                 errs() << "\n> FN :: "<<F->getName()<<".............\n"; 
                 if (MiuMod.isIgnoreFunction(&*F)) { 
                     dbg(errs()<<"skip\n";)
@@ -790,7 +807,9 @@ namespace {
                 FInfo->setTLIWP(TLIWP);
                 
                 // TODO: Modify collectAllocations for spp
-                FInfo->collectAllocations(); 
+                // FInfo->collectAllocations();
+
+                MiuMod.collectAllocations(FInfo); 
                 
                 // TODO: Modify deriveUntrackedPtrs for spp
                 FInfo->deriveUntrackedPtrs();
