@@ -1,6 +1,6 @@
-//
-//===-- FunctionInfoAbstract.h - Example Transformations ---------*- C++ -*-===//
-//===--- Copyright © March 2022 by Myoung Jin Nam ---===//
+//===-----  FuncInfoAbstract.h - Transformation pass        -----===//
+//===-----  Copyright © March 2022 by Myoung Jin Nam        -----===//
+//===-----  myoungjin.nam@gmail.com, mjn31@cantab.ac.uk     -----===//
 
 #ifndef LLVM_TRANSFORMS_FUNC_INFO_ABSTRACT_MIUPASS_H
 #define LLVM_TRANSFORMS_FUNC_INFO_ABSTRACT_MIUPASS_H
@@ -70,6 +70,7 @@ namespace MiuProject {
         
         FuncInfoAbstract(Function* F) {
             this->F = F;
+            errs()<<"FuncInfoAbstract_constructor_called!\n";
         }
         virtual ~FuncInfoAbstract() = 0;
         

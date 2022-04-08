@@ -1,12 +1,6 @@
-//
-//
-//===-- ModInfoAbstract.h - Example Transformations ------------------*- C++ -*-===//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
+//===-----  RemoveRTChks/ModInfoAbstract.h - Transformation pass    -----===//
+//===-----  Copyright © March 2022 by Myoung Jin Nam                -----===//
+//===-----  myoungjin.nam@gmail.com, mjn31@cantab.ac.uk             -----===//
 
 #ifndef LLVM_TRANSFORMS_MOD_INFO_ABSTRACT_MIUPASS_H
 #define LLVM_TRANSFORMS_MOD_INFO_ABSTRACT_MIUPASS_H
@@ -69,9 +63,6 @@ namespace MiuProject {
       
       protected:
         
-        //StringRef MainPrologueName = "";
-        //StringRef Prefix = "";
-
       public:
         
         Module* M = nullptr;
@@ -126,6 +117,7 @@ namespace MiuProject {
             this->MainPrologueName = "MIU_main_prologue_base";
         }
         
+        /* 
         virtual bool isHookFunc (Function * Func)
         {
             assert(!(this->Prefix.empty()));
@@ -134,7 +126,6 @@ namespace MiuProject {
             }
             return false;
         }
-
         virtual bool isCallHook (Value * Val)
         {
             if (!isa<CallInst>(Val)) return false;
@@ -148,6 +139,7 @@ namespace MiuProject {
             }
             return false;
         } 
+        */
 
         virtual bool instrGep(GetElementPtrInst* Gep) {return false;} 
         virtual bool instrumentLoadOrStore(Instruction * I) {return false;} 

@@ -1,4 +1,4 @@
-//===-----  Optimisation/RemoveRTChks.cpp - Transformation pass -----===//
+//===-----  RemoveRTChks/RemoveRTChks.cpp - Transformation pass -----===//
 //===-----  Copyright © March 2022 by Myoung Jin Nam            -----===//
 //===-----  myoungjin.nam@gmail.com, mjn31@cantab.ac.uk         -----===//
 
@@ -6,9 +6,9 @@
 
 /* MiuProject-related */
 // TODO: make it self-contained under the branch
-#include "../../ModInfoOpt.h"
-#include "../../FuncInfoAbstract.h"
-#include "../../HookInfoAbstract.h"
+#include "./ModInfoOpt.h"
+#include "./FuncInfoAbstract.h"
+#include "./HookInfoAbstract.h"
 
 ////
 #include "llvm/IR/LegacyPassManager.h"
@@ -87,25 +87,30 @@ namespace {
         StringRef UpdatePtrHookName = "";
         StringRef UntagHookName = "";
         StringRef AllocHookName = "";
-        //- PM-specific -//
+        //- spp-specific. -//
         StringRef PMAllocFuncName = "";
 
       public: 
         //- constructor, destructor -//
-        HookInfoMiu (StringRef & str, Module * mod) : MiuProject::HookInfoAbstract (str, mod) 
+        HookInfoMiu (StringRef & prefix, Module * mod) : MiuProject::HookInfoAbstract (prefix, mod) 
         {
-            assert(!str.empty());
+            assert(!prefix.empty());
 
             this->ChkBoundHookName = "MIU_checkbound";
             this->UpdatePtrHookName = "MIU_updatetag";
             this->UntagHookName = "MIU_cleantag";
             this->AllocHookName = "MIU_instr_heap_alloc";
+            //- TODO: Handle name mangling. Should I move this to modinfo? 
             this->PM_AllocFuncName = "pmemobj_direct_inline";
-
+            
+            assert(ChkBoundHookName.startswith(Prefix));
+            assert(UpdatePtrHookName.startswith(Prefix));
+            assert(UntagHookName.startswith(Prefix));
+            assert(AllocHookName.startswith(Prefix));
         } 
+        
         virtual ~HookInfoMiu() {}    
         
-
         virtual StringRef getUntagHookName ()
         {
             return this->UntagHookName;
@@ -180,88 +185,9 @@ namespace {
             
             return true; 
         }
-        
-        virtual bool getHookProto (FunctionCallee & Hook, StringRef & HookName)
-        {
-            bool changed = false;
-
-            std::vector <Type*> ParamTypes;
-            FunctionType * FTY= nullptr;
-
-            if (HookName.equals("MIU_main_prologue_base")) {
-
-                Type* VoidTy= Type::getVoidTy(*CXT);
-                FTY= FunctionType::get(VoidTy, ParamTypes, false);
-                changed = true;
-            } 
-            else if (HookName.equals("MIU_main_prologue_tychk_wrap")) {
-
-                Type* VoidTy= Type::getVoidTy(*CXT);
-                Type* VoidPTy= Type::getInt8PtrTy(*CXT);
-                Type* Int16Ty= Type::getInt16Ty(*CXT);
-                Type* Int32Ty= Type::getInt32Ty(*CXT);
-
-                ParamTypes.push_back(VoidPTy);    
-                ParamTypes.push_back(Int16Ty);   
-                ParamTypes.push_back(Int16Ty);   
-                ParamTypes.push_back(Int16Ty);   
-                ParamTypes.push_back(Int32Ty);   
-                ParamTypes.push_back(VoidPTy);    
-
-                FTY= FunctionType::get(VoidTy, ParamTypes, false);
-                changed = true;
-            }
-            else {;}
-
-            Hook= M->getOrInsertFunction(HookName, FTY);
-            return changed;
-        }  
         //- modified: __isSafeAccess in Framer.h.   -// 
         //- Consider spacemiu repo.                 -//
-        
-        /* 
-        virtual bool isInboundPtr (Value * Ptr) 
-        {
-            CallInst * ci= __isAllocation(gep->getPointerOperand(), M, gep); 
-            //ci is hook_alloca,hook_gv, or malloc call
-            if (ci==nullptr) {
-                return NOTSAFESTATICALLY; 
-            }
-            if (gep->hasAllZeroIndices()) { // base addr of alloca/gv
-                return SAFESTATICALLY; 
-            }
-            // ***** malloc s ***   
-            if (ci->getCalledFunction()->getName().equals("malloc")) {
-                return handleMallocStaticBounds(gep, ci, isMemAccess, M); 
-            }
-            // ***** malloc e ***
-
-            if (!isa<ConstantInt>(gep->getOperand(1)->stripPointerCasts())){
-                return NOTSAFESTATICALLY; // issafeaccess==0. 
-            }
-            if (!((cast<ConstantInt>(gep->getOperand(1)->stripPointerCasts()))->equalsInt(0))) {
-                return NOTSAFESTATICALLY; 
-            }
-            if (!gep->hasAllConstantIndices()) {
-                if (gep->getNumIndices()<=2) {
-                    return COMPAREIDXATRUNTIME; // issafeaccess==2. requiring runtime check 
-                } 
-                else {
-                    return NOTSAFESTATICALLY;
-                } 
-            }
-            // offset= base~ptr (two args. 2nd is gep's ptr.assignment)
-            unsigned offset= getStaticOffset(gep, &M.getDataLayout()); 
-            unsigned totalsize= getmysize(ci);
-            unsigned sizeToAccess= FramerGetBitwidth(cast<PointerType>(gep->getType())->getElementType(), &M.getDataLayout())/8;
-
-            return isStaticInBound(offset, 
-                    sizeToAccess,
-                    totalsize,
-                    isMemAccess);  
-
-        }
-        */ 
+    
     };
 
     class FuncInfoRemRTChks : public MiuProject::FuncInfoAbstract {
@@ -482,6 +408,7 @@ namespace {
                         HeapAllocs.insert(&Ins);
                         errs()<<"Heap: "<<Ins<<"\n";
                     }
+                    //- spp-specific -//
                     else if (getHookInfo()->isPMAllocFunc(CalleeF)) {
                         HeapAllocs.insert(&Ins);
                         errs()<<"Heap: "<<Ins<<"\n";
@@ -551,16 +478,18 @@ namespace {
     class ModInfoOptRMChks : public MiuProject::ModInfoOpt {
       
       protected:
+        
+        HookInfoAbstract * hookinfo = nullptr;
        
       public:  
         
-        HookInfoAbstract * hookinfo = nullptr;
         
-        ModInfoOptRMChks (Module * M, StringRef & prefix) : MiuProject::ModInfoOpt (M, prefix) 
+        ModInfoOptRMChks (Module * M, StringRef & prefix, HookInfoAbstract * Hookinfo) : MiuProject::ModInfoOpt (M, prefix) 
         {
-            this->hookinfo = new HookInfoMiu(prefix, M);  
+            this->hookinfo = Hookinfo;  
             errs()<<" ------- ModInfoOptRMChks_constructor_called\n";
         } 
+        
         HookInfoMiu * getHookInfo()
         {
             return (HookInfoMiu*)hookinfo; 
@@ -813,21 +742,21 @@ namespace {
 
         virtual bool runOnModule(Module& M) {
             
+            bool Changed = false;
+            
             StringRef ModName = M.getModuleIdentifier(); 
             StringRef SrcFileName = ModName.substr(ModName.rfind('/')); 
 
             errs() <<"\n-----------------------------------------\n";
             errs() <<">> RemoveCHKS_BB:: " << SrcFileName <<"\n";
             
-            bool Changed = false;
-            
-            //-  ModInfoType instance creating -//
-            
             StringRef HookPrefix= "MIU_";
+            HookInfoMiu * hookinfo = new HookInfoMiu(HookPrefix, M);  
             
-            // TODO: Separate HookInfo from ModInfo 
-            ModInfoOptRMChks MiuMod(&M, HookPrefix);
-            
+            //-  ModInfo instance creating -//
+            ModInfoOptRMChks MiuMod(&M, HookPrefix, hookinfo);
+            assert(MiuMod.getHookInfo());
+
             //-  TLI setting   -//
             // TODO: redundant? Trim initialising 
             auto GetTLI = [this](Function &F) -> TargetLibraryInfo & {
@@ -837,8 +766,6 @@ namespace {
                 = &getAnalysis<TargetLibraryInfoWrapperPass>();
 
             MiuMod.setTLI(GetTLI);
-            
-            //ModInfoOptRMChks MiuMod(&M, HookPrefix);
             
             //TODO: Clean the code (replace above with following_
             MiuMod.initialiseModInfo(GetTLI);
