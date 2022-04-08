@@ -1,4 +1,7 @@
-//===----- Optimisation - Transformation pass -----===//
+//===-----  Optimisation/RemoveRTChks.cpp - Transformation pass -----===//
+//===-----  Copyright © March 2022 by Myoung Jin Nam            -----===//
+//===-----  myoungjin.nam@gmail.com, mjn31@cantab.ac.uk         -----===//
+
 #define DEBUG_TYPE "remove_rtchks"
 
 /* MiuProject-related */
@@ -84,6 +87,8 @@ namespace {
         StringRef UpdatePtrHookName = "";
         StringRef UntagHookName = "";
         StringRef AllocHookName = "";
+        //- PM-specific -//
+        StringRef PMAllocFuncName = "";
 
       public: 
         //- constructor, destructor -//
@@ -95,33 +100,12 @@ namespace {
             this->UpdatePtrHookName = "MIU_updatetag";
             this->UntagHookName = "MIU_cleantag";
             this->AllocHookName = "MIU_instr_heap_alloc";
-            
-            //setChkBoundHookName(Twine(str + ChkBoundSuffix));
-            //setUpdatePtrHookName(Twine(str + UpdatePtrSuffix));
-            //setUntagHookName (StringRef(str + UntagSuffix));
-            //setAllocHookName (StringRef(str + AllocSuffix));
+            this->PM_AllocFuncName = "pmemobj_direct_inline";
+
         } 
         virtual ~HookInfoMiu() {}    
         
-        virtual void setChkBoundHookName (StringRef & Str) 
-        {
-            this->ChkBoundHookName = Str;
-        }
-        
-        virtual void setUpdatePtrHookName (StringRef & Str) 
-        {
-            this->UpdatePtrHookName = Str;
-        }
-        
-        virtual void setUntagHookName (StringRef & Str) 
-        {
-            this->UntagHookName = Str;
-        }
 
-        virtual void setAllocHookName (StringRef & Str) 
-        {
-            this->AllocHookName = Str;
-        }
         virtual StringRef getUntagHookName ()
         {
             return this->UntagHookName;
@@ -152,6 +136,17 @@ namespace {
             return false;
         }
         
+        bool isPMAllocFuncName (StringRef & Str) 
+        {
+            if (Str.equals(this->PMAllocFuncName)) return true;
+            return false;
+        }
+        
+        bool isPMAllocFunc (Function * F)
+        {
+            StringRef       
+        }
+         
         //- check if it is call hook -// 
         virtual bool isCheckBoundCallHook (Instruction * Ins)
         {
@@ -420,7 +415,6 @@ namespace {
                         //assert(iUserOfBCI->getOperand(OpIdx)->getType()==Ptr->getType()); 
 
                         // TODO: is this correct??? ************
-
                         // Replaced hook call, not setoperand.
                         iUserOfBCI->setOperand(OpIdx, newCI); 
 
@@ -483,11 +477,16 @@ namespace {
                     Function * CalleeF = CI->getCalledFunction();
                     if (!CalleeF) continue;
                      
-                    //- Heap -// 
+                    //- Volatile Heap -// 
                     if (isAllocationFn(CI, &TLIWP->getTLI(*CalleeF))) {
                         HeapAllocs.insert(&Ins);
                         errs()<<"Heap: "<<Ins<<"\n";
                     }
+                    else if (getHookInfo()->isPMAllocFunc(CalleeF)) {
+                        HeapAllocs.insert(&Ins);
+                        errs()<<"Heap: "<<Ins<<"\n";
+                    }
+                    else {;}
                 }
             } 
         }
@@ -553,16 +552,9 @@ namespace {
       
       protected:
        
-        //FuncInfoRemRTChks * CurFuncInfo; 
-        /*
-        StringRef ChkBoundHookName = "";
-        StringRef UpdatePtrHookName = "";
-        StringRef UntagHookName = "";
-        StringRef AllocHookName = "";
-        */
-        HookInfoAbstract * hookinfo = nullptr;
-
       public:  
+        
+        HookInfoAbstract * hookinfo = nullptr;
         
         ModInfoOptRMChks (Module * M, StringRef & prefix) : MiuProject::ModInfoOpt (M, prefix) 
         {
@@ -575,82 +567,6 @@ namespace {
         }
 
         virtual ~ModInfoOptRMChks() {}    
-        
-        //- Set hook funcs -//
-        /*
-        virtual void setChkBoundHookName (StringRef & Str) 
-        {
-            this->ChkBoundHookName = Str;
-        }
-        
-        virtual void setUpdatePtrHookName (StringRef & Str) 
-        {
-            this->UpdatePtrHookName = Str;
-        }
-        
-        virtual void setUntagHookName (StringRef & Str) 
-        {
-            this->UntagHookName = Str;
-        }
-
-        virtual void setAllocHookName (StringRef & Str) 
-        {
-            this->AllocHookName = Str;
-        }
-        virtual StringRef getUntagHookName ()
-        {
-            return this->UntagHookName;
-        }
-        
-        //- check hook funcs -//
-        virtual bool isCheckBoundHookName (StringRef & Str) 
-        {
-            if (Str.equals(this->ChkBoundHookName)) return true;
-            return false;
-        }
-         
-        virtual bool isUpdatePtrHookName (StringRef & Str) 
-        {
-            if (Str.equals(this->UpdatePtrHookName)) return true;
-            return false;
-        }
-        
-        virtual bool isUntagHookName (StringRef & Str) 
-        {
-            if (Str.equals(this->UntagHookName)) return true;
-            return false;
-        }
-
-        virtual bool isAllocHookName (StringRef & Str) 
-        {
-            if (Str.equals(this->AllocHookName)) return true;
-            return false;
-        }
-        
-        //- check if it is call hook -// 
-        virtual bool isCheckBoundCallHook (Instruction * Ins)
-        {
-            if (!isCallHook(Ins)) { return false; }
-            StringRef HookName = cast<CallInst>(Ins)->getCalledFunction()->getName();
-            if (isCheckBoundHookName(HookName)) { return true; }
-            return false; 
-        }
-        virtual bool isUntagCallHook (Instruction * Ins)
-        {
-            if (!isCallHook(Ins)) { return false; }
-            StringRef HookName = cast<CallInst>(Ins)->getCalledFunction()->getName();
-            if (isUntagHookName(HookName)) { return true; }
-            return false; 
-        }
-        
-        virtual bool isUpdatePtrCallHook (Instruction * Ins)
-        {
-            if (!isCallHook(Ins)) { return false; }
-            StringRef HookName = cast<CallInst>(Ins)->getCalledFunction()->getName();
-            if (isUpdatePtrHookName(HookName)) { return true; }
-            return false; 
-        }
-        */
         
         virtual bool isUntracked (Value * Val)
         {
@@ -714,7 +630,7 @@ namespace {
 
             for (auto & Ins : instructions(F)) {
 
-                if (!this->getHookInfo()->isUpdatePtrCallHook (&Ins)) {  continue; } 
+                if (!getHookInfo()->isUpdatePtrCallHook (&Ins)) {  continue; } 
 
                 CallInst * CI = cast<CallInst>(&Ins);
 
@@ -783,7 +699,7 @@ namespace {
                 else if (isSafePtr(Ptr)) {
                     dbg(errs()<<"-> safe_ptr. Replace.\n";);
                     FunctionCallee Rep;
-                    StringRef TmpName= this->getHookInfo()->getUntagHookName(); 
+                    StringRef TmpName= getHookInfo()->getUntagHookName(); 
                     dbg(errs()<<"new_Hook: "<<TmpName<<"\n");
                     bool GotProto= getHookInfo()->getHookProto_Untag(Rep);
                     assert(GotProto);
@@ -927,19 +843,6 @@ namespace {
             //TODO: Clean the code (replace above with following_
             MiuMod.initialiseModInfo(GetTLI);
             
-            //-  Set hook names  -//
-            /*
-            StringRef ChkBoundHookName = "MIU_checkbound";
-            StringRef UpdatePtrHookName = "MIU_updatetag";
-            StringRef UntagHookName = "MIU_cleantag";
-            StringRef AllocHookName = "MIU_instr_heap_alloc";
-
-            MiuMod.setChkBoundHookName(ChkBoundHookName);
-            MiuMod.setUpdatePtrHookName(UpdatePtrHookName);
-            MiuMod.setUntagHookName(UntagHookName);
-            MiuMod.setAllocHookName(AllocHookName);
-            */
-
             // TODO: 
             //MiuMod.initialiseUntracked ();
     
