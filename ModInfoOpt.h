@@ -26,12 +26,11 @@ namespace MiuProject {
         
         ModInfoOpt(Module * M, StringRef & prefix) : ModInfoAbstract (M)
         {        
-            this->M = M;
-            this->Prefix = prefix;
+            //this->M = M;
+            //this->CXT = &(M->getContext());
+            //this->DL = &(M->getDataLayout());
             
-            this->CXT = &(M->getContext());
-            this->DL = &(M->getDataLayout());
-
+            this->Prefix = prefix;
             errs()<<"ModInfoOpt_constructor_called\n";
         }
         virtual ~ModInfoOpt() {}

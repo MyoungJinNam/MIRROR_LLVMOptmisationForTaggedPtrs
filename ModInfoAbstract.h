@@ -76,14 +76,17 @@ namespace MiuProject {
       public:
         
         Module* M = nullptr;
-        TargetLibraryInfo* TLI = nullptr;
-        ScalarEvolution* SE = nullptr;
         LLVMContext * CXT = nullptr;
         const DataLayout *DL;
+        //ScalarEvolution* SE = nullptr;
+        
+        TargetLibraryInfo* TLI = nullptr;
         function_ref<const TargetLibraryInfo &(Function &)> GetTLI;
         
         ModInfoAbstract(Module* M) {
             this->M = M;
+            this->CXT = &(M->getContext());                                                     
+            this->DL = &(M->getDataLayout());
         }
         virtual ~ModInfoAbstract() = 0;
         
@@ -92,10 +95,10 @@ namespace MiuProject {
         {
             this->MainPrologueName= Fname; 
         }
-        */
         void setScalarEvolution(ScalarEvolution* SE) {
             this->SE = SE;
         }
+        */
         
         void setLLVMContext(LLVMContext * CXT) {
             this->CXT = CXT;
@@ -177,6 +180,7 @@ namespace MiuProject {
     };
     
     ModInfoAbstract::~ModInfoAbstract() {}
+
 } // namespace MiuProject 
 
 #endif //LLVM_TRANSFORMS_MOD_INFO_MIU_MIUPASS_H

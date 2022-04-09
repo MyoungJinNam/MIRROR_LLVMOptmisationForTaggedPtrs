@@ -104,8 +104,6 @@ namespace {
         //- constructor, destructor -//
         HookInfoMiu (StringRef & prefix, Module * mod) : MiuProject::HookInfoAbstract (prefix, mod) 
         {
-            assert(!prefix.empty());
-
             this->ChkBoundHookName = "MIU_checkbound";
             this->UpdatePtrHookName = "MIU_updatetag";
             this->UntagHookName = "MIU_cleantag";
@@ -113,13 +111,15 @@ namespace {
             //- TODO: Handle name mangling. Should I move this to modinfo? 
             this->PMAllocFuncName = "pmemobj_direct_inline";
             
-            assert(ChkBoundHookName.startswith(Prefix));
-            assert(UpdatePtrHookName.startswith(Prefix));
-            assert(UntagHookName.startswith(Prefix));
-            assert(AllocHookName.startswith(Prefix));
+            //assert(ChkBoundHookName.startswith(Prefix));
+            //assert(UpdatePtrHookName.startswith(Prefix));
+            //assert(UntagHookName.startswith(Prefix));
+            //assert(AllocHookName.startswith(Prefix));
         } 
         
-        virtual ~HookInfoMiu() {}    
+        virtual ~HookInfoMiu() {
+            errs()<<">> free_HookInfoMiu\n";
+        }    
         
         virtual StringRef getUntagHookName ()
         {
@@ -219,7 +219,6 @@ namespace {
         FuncInfoRemRTChks (Function * F) : MiuProject::FuncInfoAbstract (F) 
         {
             this->F = F;
-            //errs()<<"FuncInfoRemRTChks_instance_created\n";
         } 
         virtual ~FuncInfoRemRTChks() {}    
         
@@ -456,23 +455,26 @@ namespace {
       
       protected:
         
-        HookInfoAbstract * hookinfo = nullptr;
+        HookInfoMiu * hookinfo = nullptr;
        
       public:  
         
-        
-        ModInfoOptRMChks (Module * M, StringRef & prefix, HookInfoAbstract * Hookinfo) : MiuProject::ModInfoOpt (M, prefix) 
+        ModInfoOptRMChks (Module * M, StringRef & prefix, HookInfoMiu * Hookinfo) : MiuProject::ModInfoOpt (M, prefix) 
         {
             this->hookinfo = Hookinfo;  
-            errs()<<" ------- ModInfoOptRMChks_constructor_called\n";
+            assert(!this->Prefix.empty());    
+            assert(this->M);    
         } 
+        virtual ~ModInfoOptRMChks() {
+            errs()<<">> free_ModInfoOptRMChks\n";
+        }    
         
         HookInfoMiu * getHookInfo()
         {
-            return (HookInfoMiu*)hookinfo; 
+            return this->hookinfo; 
         }
-
-        virtual ~ModInfoOptRMChks() {}    
+        
+        virtual void initialiseUntracked ();
         
         virtual bool isUntracked (Value * Val)
         {
@@ -728,7 +730,7 @@ namespace {
         }
     }; // end of class
     
-    /* 
+    // TODO: fill this 
     void ModInfoOptRMChks::initialiseUntracked ()
     {
         // for SPP, untrack Locals
@@ -738,7 +740,6 @@ namespace {
            Untracked.insert(&GV); 
         }
     }
-    */
 
     class Remove_RTChks : public ModulePass {
 
@@ -765,12 +766,14 @@ namespace {
             errs() <<"\n-----------------------------------------\n";
             errs() <<">> RemoveCHKS_BB:: " << SrcFileName <<"\n";
             
+            //- HookInfoMiu creation-// 
             StringRef HookPrefix= "MIU_";
-            HookInfoMiu * hookinfo = new HookInfoMiu(HookPrefix, &M);  
+            HookInfoMiu hookinfo(HookPrefix, &M);  
             
-            //-  ModInfo instance creating -//
-            ModInfoOptRMChks MiuMod(&M, HookPrefix, hookinfo);
-            assert(MiuMod.getHookInfo());
+            //-  ModInfo instance creatiion -//
+            //ModInfoOptRMChks MiuMod (&M, HookPrefix, hookinfo);
+            ModInfoOpt MiuMod (&M, HookPrefix);
+            //assert(MiuMod.getHookInfo());
 
             //-  TLI setting   -//
             // TODO: redundant? Trim initialising 
@@ -780,10 +783,10 @@ namespace {
             TargetLibraryInfoWrapperPass *TLIWP 
                 = &getAnalysis<TargetLibraryInfoWrapperPass>();
 
-            MiuMod.setTLI(GetTLI);
+            //MiuMod.setTLI(GetTLI);
             
             //TODO: Clean the code (replace above with following_
-            MiuMod.initialiseModInfo(GetTLI);
+            //MiuMod.initialiseModInfo(GetTLI);
             
             // TODO: 
             //MiuMod.initialiseUntracked ();
@@ -797,34 +800,36 @@ namespace {
                 // e.g. spp branch: pmem-specific functions
 
                 errs() << "\n> FN :: "<<F->getName()<<".............\n"; 
-                if (MiuMod.isIgnoreFunction(&*F)) { 
+                /*if (MiuMod.isIgnoreFunction(&*F)) { 
                     dbg(errs()<<"skip\n";)
                     continue;
                 }
-                 
-                FuncInfoRemRTChks * FInfo = new FuncInfoRemRTChks(&*F);
+                */
+
+                //FuncInfoRemRTChks FInfo (&*F);
                 
-                FInfo->setTLIWP(TLIWP);
+                //FInfo.setTLIWP(TLIWP);
                 
                 // TODO: Modify collectAllocations for spp
-                // FInfo->collectAllocations();
-
-                MiuMod.collectAllocations(FInfo); 
+                // TODO: ENABLE_LATER.
+                //MiuMod.collectAllocations(&FInfo); 
                 
                 // TODO: Modify deriveUntrackedPtrs for spp
-                FInfo->deriveUntrackedPtrs();
+                // TODO: ENABLE_LATER.
+                //FInfo.deriveUntrackedPtrs();
                 
-                FInfo->deriveSafePtrs();
+                // TODO: ENABLE_LATER_DEBUGGING ***** .
+                //FInfo.deriveSafePtrs();
                  
-                Changed |= MiuMod.optGEPHooks (FInfo);
+                // TODO: ENABLE_LATER_DEBUGGING ***** .
+                //Changed |= MiuMod.optGEPHooks (&FInfo);
                 
                 errs() << "--------------- optGEPHooks_done --------\n"; 
 
-                Changed |= MiuMod.optMemAccessHooks (FInfo);              
+                // TODO: ENABLE_LATER_DEBUGGING ***** .
+                //Changed |= MiuMod.optMemAccessHooks (&FInfo);              
                 errs()<<"optMemAccess_done_DISABLED. ENABLE LATER! TODO. \n"; 
                 
-                delete FInfo;
-
                 // TODO: update mod-level opt information (#removed_checks)
             }
            
@@ -834,6 +839,7 @@ namespace {
             // TODO!! modify test src (put more structure types) 
 
             //- Main function instrumentation (prologue etc)  -// 
+
             dbg(errs()<<"\n";)
 
             //Changed |= MiuMod.instrMainFunction();

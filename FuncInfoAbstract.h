@@ -70,7 +70,6 @@ namespace MiuProject {
         
         FuncInfoAbstract(Function* F) {
             this->F = F;
-            errs()<<"FuncInfoAbstract_constructor_called!\n";
         }
         virtual ~FuncInfoAbstract() = 0;
         

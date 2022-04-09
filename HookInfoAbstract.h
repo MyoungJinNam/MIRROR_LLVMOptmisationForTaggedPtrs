@@ -24,7 +24,7 @@ namespace MiuProject {
         Module * M = nullptr;
         
         LLVMContext * CXT = nullptr;
-        const DataLayout *DL;                
+        //const DataLayout *DL;                
       
       public:
         
