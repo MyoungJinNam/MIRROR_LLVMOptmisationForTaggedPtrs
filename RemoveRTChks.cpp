@@ -469,9 +469,7 @@ namespace {
             assert(!this->Prefix.empty());    
             assert(this->M);    
         } 
-        virtual ~ModInfoOptRMChks() {
-            errs()<<">> free_ModInfoOptRMChks\n";
-        }    
+        virtual ~ModInfoOptRMChks() {}    
         
         HookInfoMiu * getHookInfo()
         {
@@ -770,14 +768,12 @@ namespace {
             errs() <<"\n-----------------------------------------\n";
             errs() <<">> RemoveCHKS_BB:: " << SrcFileName <<"\n";
             
-            //- HookInfoMiu creation-// 
+            //- "Hook"InfoMiu creation-// 
             StringRef HookPrefix= "MIU_";
             HookInfoMiu hookinfo(HookPrefix, &M);  
             
-            //-  ModInfo instance creatiion -//
-            //ModInfoOptRMChks MiuMod (&M, HookPrefix, hookinfo);
-            ModInfoOpt MiuMod (&M, HookPrefix);
-            //assert(MiuMod.getHookInfo());
+            //-  "Mod"Info instance creatiion -//
+            ModInfoOptRMChks MiuMod (&M, HookPrefix, &hookinfo);
 
             //-  TLI setting   -//
             // TODO: redundant? Trim initialising 
@@ -792,7 +788,7 @@ namespace {
             //TODO: Clean the code (replace above with following_
             //MiuMod.initialiseModInfo(GetTLI);
             
-            // TODO: 
+            // TODO: !!! DO! 
             //MiuMod.initialiseUntracked ();
     
             //Track the external functions first &
@@ -804,34 +800,33 @@ namespace {
                 // e.g. spp branch: pmem-specific functions
 
                 errs() << "\n> FN :: "<<F->getName()<<".............\n"; 
-                /*if (MiuMod.isIgnoreFunction(&*F)) { 
+                if (MiuMod.isIgnoreFunction(&*F)) { 
                     dbg(errs()<<"skip\n";)
                     continue;
                 }
-                */
 
-                //FuncInfoRemRTChks FInfo (&*F);
+                FuncInfoRemRTChks FInfo (&*F);
                 
-                //FInfo.setTLIWP(TLIWP);
+                FInfo.setTLIWP(TLIWP);
                 
                 // TODO: Modify collectAllocations for spp
                 // TODO: ENABLE_LATER.
-                //MiuMod.collectAllocations(&FInfo); 
+                MiuMod.collectAllocations(&FInfo); 
                 
                 // TODO: Modify deriveUntrackedPtrs for spp
                 // TODO: ENABLE_LATER.
-                //FInfo.deriveUntrackedPtrs();
+                FInfo.deriveUntrackedPtrs();
                 
                 // TODO: ENABLE_LATER_DEBUGGING ***** .
-                //FInfo.deriveSafePtrs();
+                FInfo.deriveSafePtrs();
                  
                 // TODO: ENABLE_LATER_DEBUGGING ***** .
-                //Changed |= MiuMod.optGEPHooks (&FInfo);
+                Changed |= MiuMod.optGEPHooks (&FInfo);
                 
                 errs() << "--------------- optGEPHooks_done --------\n"; 
 
                 // TODO: ENABLE_LATER_DEBUGGING ***** .
-                //Changed |= MiuMod.optMemAccessHooks (&FInfo);              
+                Changed |= MiuMod.optMemAccessHooks (&FInfo);              
                 errs()<<"optMemAccess_done_DISABLED. ENABLE LATER! TODO. \n"; 
                 
                 // TODO: update mod-level opt information (#removed_checks)
@@ -845,7 +840,8 @@ namespace {
             //- Main function instrumentation (prologue etc)  -// 
 
             dbg(errs()<<"\n";)
-
+            
+            // TODO: what is this??
             //Changed |= MiuMod.instrMainFunction();
             errs() << "> Exiting RemoveCHKS_BB_Pass .......\n";
             

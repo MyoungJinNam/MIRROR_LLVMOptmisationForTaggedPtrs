@@ -115,7 +115,7 @@ namespace SelfContainedMiuProject {
         {
             return &GetTLI(const_cast<Function &>(*FN));
         }
-
+    
         void initialiseModInfo (function_ref<const TargetLibraryInfo &(Function &)> GetTLI) 
         {
             //this->SE = M->SE;
@@ -124,6 +124,7 @@ namespace SelfContainedMiuProject {
             this->GetTLI= GetTLI; 
             //this->MainPrologueName = "MIU_main_prologue_base";
         }
+        /*
         virtual void initialiseModInfo ()
         {
             //this->SE = M->SE;
@@ -132,7 +133,6 @@ namespace SelfContainedMiuProject {
             //this->MainPrologueName = "MIU_main_prologue_base";
         }
         
-        /* 
         virtual bool isHookFunc (Function * Func)
         {
             assert(!(this->Prefix.empty()));
