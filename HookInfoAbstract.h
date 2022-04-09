@@ -11,9 +11,9 @@
 #include "llvm/Transforms/MiuProject/MiuUtils.h"
 
 using namespace llvm;
-using namespace MiuProject;
+using namespace SelfContainedMiuProject;
 
-namespace MiuProject {
+namespace SelfContainedMiuProject {
 // TODO: disable namespace later
 
     class HookInfoAbstract {
@@ -61,6 +61,6 @@ namespace MiuProject {
         } 
     };
 
-} // namespace MiuProject 
+} // namespace SelfContainedMiuProject 
 
 #endif // LLVM_TRANSFORMS_MIUPROJECT_HOOK_INFO_ABSTRACT_MIUPASS_H

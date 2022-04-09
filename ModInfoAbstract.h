@@ -57,7 +57,7 @@
 
 using namespace llvm;
 
-namespace MiuProject {
+namespace SelfContainedMiuProject {
 
     template < typename T>
     static bool has_elem_o (std::unordered_set<T> & OST, T elem)
@@ -85,7 +85,7 @@ namespace MiuProject {
         
         ModInfoAbstract(Module* M) {
             this->M = M;
-            this->CXT = &(M->getContext());                                                     
+            this->CXT = &(M->getContext());
             this->DL = &(M->getDataLayout());
         }
         virtual ~ModInfoAbstract() = 0;
@@ -181,6 +181,6 @@ namespace MiuProject {
     
     ModInfoAbstract::~ModInfoAbstract() {}
 
-} // namespace MiuProject 
+} // namespace SelfContainedMiuProject 
 
 #endif //LLVM_TRANSFORMS_MOD_INFO_MIU_MIUPASS_H

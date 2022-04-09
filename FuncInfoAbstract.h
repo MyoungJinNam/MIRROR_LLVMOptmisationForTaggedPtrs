@@ -57,7 +57,7 @@
 
 using namespace llvm;
 
-namespace MiuProject {
+namespace SelfContainedMiuProject {
 
     class FuncInfoAbstract {
       
@@ -84,6 +84,6 @@ namespace MiuProject {
     };
     
     FuncInfoAbstract::~FuncInfoAbstract() {}
-} // namespace MiuProject 
+} // namespace SelfContainedMiuProject 
 
 #endif //LLVM_TRANSFORMS_FUNC_INFO_MIU_MIUPASS_H

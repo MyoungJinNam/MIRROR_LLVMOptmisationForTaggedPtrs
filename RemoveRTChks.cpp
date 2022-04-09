@@ -75,7 +75,7 @@
 #endif
 
 using namespace llvm;
-using namespace MiuProject;
+using namespace SelfContainedMiuProject;
     
 namespace {
     
@@ -89,7 +89,7 @@ namespace {
         return false;
     }
 
-    class HookInfoMiu : public MiuProject::HookInfoAbstract {
+    class HookInfoMiu : public SelfContainedMiuProject::HookInfoAbstract {
       
       protected: 
         
@@ -102,7 +102,7 @@ namespace {
 
       public: 
         //- constructor, destructor -//
-        HookInfoMiu (StringRef & prefix, Module * mod) : MiuProject::HookInfoAbstract (prefix, mod) 
+        HookInfoMiu (StringRef & prefix, Module * mod) : SelfContainedMiuProject::HookInfoAbstract (prefix, mod) 
         {
             this->ChkBoundHookName = "MIU_checkbound";
             this->UpdatePtrHookName = "MIU_updatetag";
@@ -202,7 +202,7 @@ namespace {
     
     };
 
-    class FuncInfoRemRTChks : public MiuProject::FuncInfoAbstract {
+    class FuncInfoRemRTChks : public SelfContainedMiuProject::FuncInfoAbstract {
 
       protected:
         
@@ -216,7 +216,7 @@ namespace {
       public:
         
         //- constructor, destructor -//
-        FuncInfoRemRTChks (Function * F) : MiuProject::FuncInfoAbstract (F) 
+        FuncInfoRemRTChks (Function * F) : SelfContainedMiuProject::FuncInfoAbstract (F) 
         {
             this->F = F;
         } 
@@ -451,7 +451,7 @@ namespace {
 
     }; 
     
-    class ModInfoOptRMChks : public MiuProject::ModInfoOpt {
+    class ModInfoOptRMChks : public SelfContainedMiuProject::ModInfoOpt {
       
       protected:
         
@@ -459,8 +459,12 @@ namespace {
        
       public:  
         
-        ModInfoOptRMChks (Module * M, StringRef & prefix, HookInfoMiu * Hookinfo) : MiuProject::ModInfoOpt (M, prefix) 
+        ModInfoOptRMChks (Module * M, StringRef & prefix, HookInfoMiu * Hookinfo) : SelfContainedMiuProject::ModInfoOpt (M, prefix) 
         {
+            this->M = M;
+            this->CXT = &(M->getContext());
+            this->DL = &(M->getDataLayout());
+            this->Prefix = prefix;
             this->hookinfo = Hookinfo;  
             assert(!this->Prefix.empty());    
             assert(this->M);    

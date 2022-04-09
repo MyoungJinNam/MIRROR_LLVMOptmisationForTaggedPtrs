@@ -9,9 +9,9 @@
 #include "./ModInfoAbstract.h"
 
 using namespace llvm;
-using namespace MiuProject;
+using namespace SelfContainedMiuProject;
 
-namespace MiuProject {
+namespace SelfContainedMiuProject {
 
     class ModInfoOpt : public ModInfoAbstract {
       
@@ -26,10 +26,9 @@ namespace MiuProject {
         
         ModInfoOpt(Module * M, StringRef & prefix) : ModInfoAbstract (M)
         {        
-            //this->M = M;
-            //this->CXT = &(M->getContext());
-            //this->DL = &(M->getDataLayout());
-            
+            this->M = M;
+            this->CXT = &(M->getContext());
+            this->DL = &(M->getDataLayout());
             this->Prefix = prefix;
             errs()<<"ModInfoOpt_constructor_called\n";
         }
@@ -113,6 +112,6 @@ namespace MiuProject {
         
     };
 
-} // namespace MiuProject 
+} // namespace SelfContainedMiuProject 
 
 #endif //LLVM_TRANSFORMS_MOD_INFO_OPT_MIUPASS_H
