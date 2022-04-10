@@ -804,46 +804,27 @@ namespace {
                     dbg(errs()<<"skip\n";)
                     continue;
                 }
-
-                FuncInfoRemRTChks FInfo (&*F);
                 
+                //- FuncInto instance creation -//
+                FuncInfoRemRTChks FInfo (&*F);
                 FInfo.setTLIWP(TLIWP);
                 
                 // TODO: Modify collectAllocations for spp
-                // TODO: ENABLE_LATER.
                 MiuMod.collectAllocations(&FInfo); 
                 
                 // TODO: Modify deriveUntrackedPtrs for spp
-                // TODO: ENABLE_LATER.
                 FInfo.deriveUntrackedPtrs();
                 
-                // TODO: ENABLE_LATER_DEBUGGING ***** .
                 FInfo.deriveSafePtrs();
                  
-                // TODO: ENABLE_LATER_DEBUGGING ***** .
                 Changed |= MiuMod.optGEPHooks (&FInfo);
-                
-                errs() << "--------------- optGEPHooks_done --------\n"; 
-
-                // TODO: ENABLE_LATER_DEBUGGING ***** .
                 Changed |= MiuMod.optMemAccessHooks (&FInfo);              
-                errs()<<"optMemAccess_done_DISABLED. ENABLE LATER! TODO. \n"; 
                 
                 // TODO: update mod-level opt information (#removed_checks)
             }
            
-            // TODO: if this runs as a non-LTO, creating RT TypeTables is necessary?
-            // TODO: MAKE SURE that following Miupass does NOT intrument these GVs.  
-            
-            // TODO!! modify test src (put more structure types) 
-
-            //- Main function instrumentation (prologue etc)  -// 
-
             dbg(errs()<<"\n";)
-            
-            // TODO: what is this??
-            //Changed |= MiuMod.instrMainFunction();
-            errs() << "> Exiting RemoveCHKS_BB_Pass .......\n";
+            errs() << "\n> Exiting_RemoveCHKS_Pass .......\n";
             
             return Changed;
         }
