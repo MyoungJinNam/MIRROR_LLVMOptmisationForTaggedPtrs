@@ -208,8 +208,8 @@ namespace {
         
         //- merging into one 
         
-        std::unordered_set <Value*> FNUntracked;
-        std::unordered_set <Value*> FNSafePtrs;
+        std::unordered_set <Value*> TagFreePtrs;
+        std::unordered_set <Value*> SafePtrs;
         
         std::vector<Instruction*> RedundantChks;
       
@@ -232,11 +232,11 @@ namespace {
         std::unordered_set <Value*> Locals;
         std::unordered_set <Value*> HeapAllocs;
         
-        // Accumulate FNSafePtrs. Or delete this func..
+        // Accumulate SafePtrs. Or delete this func..
         virtual bool isSafePtr (Value * Ptr)
         {
             Value * RawPtr = Ptr->stripPointerCasts();
-            return has_elem_o (FNSafePtrs, RawPtr);
+            return has_elem_o (SafePtrs, RawPtr);
         }
         /*
         virtual bool isSafeAccess (Value * Ptr)
@@ -393,46 +393,61 @@ namespace {
             this->RedundantChks.clear();
         }
 
-        virtual void derivePerRegion(std::unordered_set<Value*> & Ptrs) 
+        virtual bool initTagFreePtrs ()
         {
-            for (auto Ptr : Ptrs) {
-              dbg(errs()<<"* add_FNUntrack: "<<*Ptr<<"\n");
-              FNUntracked.insert(Ptr); 
-              
-              for (auto User = Ptr->user_begin(); User!=Ptr->user_end(); ++User) {
-                // TODO: Just to check if replacement is correct. 
-                // Refine later.
-                // if the ptr operand (operand(0)) is untracked
-                if (isa<GetElementPtrInst>(*User)) {
-                  dbg(errs()<<"  - add_FNUntrack: "<<**User<<"\n");
-                  FNUntracked.insert(*User); 
-                }
-              }
+            unsigned initSZ = TagFreePtrs.size();
+
+            //- TODO: disable some of them for Miu
+            
+            //- Locals are tag-free: spp-specific -// 
+            for (auto Ptr : Locals) {
+              TagFreePtrs.insert(Ptr); 
             }
+            //- volatile heap allocs are tag-free: spp-specific -// 
+            for (auto Ptr : HeapAllocs) {
+              TagFreePtrs.insert(Ptr); 
+            }
+            //- GVs are tag-free: spp-specific -// 
+            for (auto Ptr : GlobalAllocs) {
+              TagFreePtrs.insert(Ptr); 
+            } 
+
+            if (TagFreePtrs.size() > initSZ) {
+                return true;
+            } 
+            return false; 
         }
 
-        virtual void deriveUntrackedPtrs ()
+        virtual void deriveTagFreePtrs ()
         {
-            errs()<<"\n--deriveUntrackedPtrs----\n";
-            //- TODO: disable some of them for Miu
-            // Untracked by SPP  
-            derivePerRegion (Locals);
-            derivePerRegion (GlobalAllocs);
-            derivePerRegion (HeapAllocs);
+            for (auto Ptr : TagFreePtrs) {
+                errs()<<"\nPtr: "<<*Ptr<<"  ----- \n";
+                for (auto User = Ptr->user_begin(); User!=Ptr->user_end(); ++User) {
+                    // TODO: Just to check if replacement is correct. 
+                    // Refine later.
+                    // if the ptr operand (operand(0)) is untracked
+                    if (isa<GetElementPtrInst>(*User)) {
+                        dbg(errs()<<"  Usr: "<<**User<<"\n");
+                        TagFreePtrs.insert(*User); 
+                    }
+                }
+            }
+            // TODO: DT
+            // TODO: points-to  
         }
         
         virtual void deriveSafePtrs ()
         {
             // insert all allocs
-            for (auto Ptr : FNUntracked) {
-                FNSafePtrs.insert(Ptr);
+            for (auto Ptr : TagFreePtrs) {
+                SafePtrs.insert(Ptr);
             }
             // TODO: fill this. derive.
         }
         
-        void addFNUntracked (Value * Ptr)
+        void addTagFreePtr (Value * Ptr)
         {
-            FNUntracked.insert((Ptr));
+            TagFreePtrs.insert((Ptr));
         }
         
         void addRedundantChks (Instruction * Ins)
@@ -441,9 +456,9 @@ namespace {
             insert_tovec(RedundantChks, Ins);
         }
         
-        virtual bool isFNUntracked (Value * Ptr) 
+        virtual bool isTagFreePtr (Value * Ptr) 
         {
-            if (has_elem_o (FNUntracked, Ptr)) {
+            if (has_elem_o (TagFreePtrs, Ptr)) {
                 return true;
             }
             return false; 
@@ -475,8 +490,6 @@ namespace {
         {
             return this->hookinfo; 
         }
-        
-        virtual void initialiseUntracked ();
         
         virtual bool isUntracked (Value * Val)
         {
@@ -574,9 +587,8 @@ namespace {
         virtual bool optGEPHooks (FuncInfoRemRTChks * FI) 
         {
             bool changed = false;
-            Function * F = FI->getFunction();
 
-            for (auto & Ins : instructions(F)) {
+            for (auto & Ins : instructions(FI->getFunction())) {
 
                 if (!getHookInfo()->isUpdatePtrCallHook (&Ins)) {  continue; } 
 
@@ -591,10 +603,10 @@ namespace {
 
                 // TODO: this is SPP-specific.
                 if (!Ptr) {
-                    FI->addFNUntracked(Ptr);
+                    FI->addTagFreePtr(Ptr);
                 }
                 // if the pointer operand is tag-free. 
-                if (isUntracked(Ptr) || FI->isFNUntracked (Ptr)) {
+                if (FI->isTagFreePtr (Ptr)) {
                     
                     dbg(errs()<<"-> Strip: Untracked or Locals.\n";);
                     FI->stripHook(CI, Ptr);
@@ -617,11 +629,9 @@ namespace {
         virtual bool optMemAccessHooks (FuncInfoRemRTChks * FI)
         {
             assert(FI->hasZeroRedundantChks());
-            Function * F = FI->getFunction();
-            
             bool changed = false;
 
-            for (auto & Ins : instructions(F)) {
+            for (auto & Ins : instructions(FI->getFunction())) {
 
                 if (!getHookInfo()->isCheckBoundCallHook(&Ins)) { continue; }
                 CallInst * CI = cast<CallInst>(&Ins);
@@ -636,10 +646,10 @@ namespace {
                 // TODO: perform this during initializing vector
                 // TODO: Important!: this is only for SPP
                 if (!Ptr) {      
-                    FI->addFNUntracked(Ptr);
+                    FI->addTagFreePtr(Ptr);
                     dbg(errs()<<"   -> not_inst. Addto_Un_tracked. (spp_only!) "<<*Ptr<<"\n";);
                 }
-                if (isUntracked(Ptr) || FI->isFNUntracked(Ptr)) {
+                if (isUntracked(Ptr) || FI->isTagFreePtr(Ptr)) {
                     dbg(errs()<<"-> Untracked_ptr. Strip.\n";);
                     FI->stripHook(CI, Ptr);
                 }   
@@ -667,11 +677,10 @@ namespace {
         virtual bool optExtCallHooks (FuncInfoRemRTChks * FI)
         {
             assert(FI->hasZeroRedundantChks());
-            Function * F = FI->getFunction();
             
             bool changed = false;
 
-            for (auto & Ins : instructions(F)) {
+            for (auto & Ins : instructions(FI->getFunction())) {
                 
                 if (!getHookInfo()->isUntagCallHook(&Ins)) { continue; }
 
@@ -686,9 +695,9 @@ namespace {
                 dbg(errs()<<"Ptr:  "<<*Ptr<<"\n";);
 
                 if (!Ptr) {
-                    FI->addFNUntracked(Ptr);
+                    FI->addTagFreePtr(Ptr);
                 }
-                if (isUntracked(Ptr) || FI->isFNUntracked(Ptr)) {
+                if (isUntracked(Ptr) || FI->isTagFreePtr(Ptr)) {
                     // strip 
                     dbg(errs()<<"-> Strip:: Untracked or Locals\n";);
                     std::vector<User*> Users(CI->user_begin(), CI->user_end());
@@ -732,17 +741,6 @@ namespace {
         }
     }; // end of class
     
-    // TODO: fill this 
-    void ModInfoOptRMChks::initialiseUntracked ()
-    {
-        // for SPP, untrack Locals
-        // for SPP, untrack Globals 
-        //std::vector<GlobalVariable*> GVs(M->global_begin(), M->global_end());
-        for (auto & GV : M->globals()) {
-           Untracked.insert(&GV); 
-        }
-    }
-
     class Remove_RTChks : public ModulePass {
 
       public:
@@ -800,6 +798,7 @@ namespace {
                 // e.g. spp branch: pmem-specific functions
 
                 errs() << "\n> FN :: "<<F->getName()<<".............\n"; 
+                // TODO: make isIgnoreFunction a modulepass' member func.
                 if (MiuMod.isIgnoreFunction(&*F)) { 
                     dbg(errs()<<"skip\n";)
                     continue;
@@ -812,9 +811,17 @@ namespace {
                 // TODO: Modify collectAllocations for spp
                 MiuMod.collectAllocations(&FInfo); 
                 
-                // TODO: Modify deriveUntrackedPtrs for spp
-                FInfo.deriveUntrackedPtrs();
+                //- Change this func for SPP -// 
+                // TODO: Modify deriveTagFreePtrs for spp
+                bool hasTagFreePtrs = FInfo.initTagFreePtrs ();
+                if (hasTagFreePtrs) { 
+                    FInfo.deriveTagFreePtrs(); 
+                }
+                else { 
+                    errs() <<"Warning: No_tag_free_ptrs\n"; 
+                }
                 
+                // TODO: Modify deriveTagFreePtrs for spp
                 FInfo.deriveSafePtrs();
                  
                 Changed |= MiuMod.optGEPHooks (&FInfo);
