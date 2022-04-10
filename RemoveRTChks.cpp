@@ -777,17 +777,17 @@ namespace {
 
             //-  TLI setting   -//
             // TODO: redundant? Trim initialising 
-            auto GetTLI = [this](Function &F) -> TargetLibraryInfo & {
+            /*auto GetTLI = [this](Function &F) -> TargetLibraryInfo & {
                 return this->getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
             };
+            MiuMod.setTLI(GetTLI);
+            //TODO: Clean the code (replace above with following_
+            //MiuMod.initialiseModInfo(GetTLI);
+            */
+
             TargetLibraryInfoWrapperPass *TLIWP 
                 = &getAnalysis<TargetLibraryInfoWrapperPass>();
 
-            //MiuMod.setTLI(GetTLI);
-            
-            //TODO: Clean the code (replace above with following_
-            //MiuMod.initialiseModInfo(GetTLI);
-            
             // TODO: !!! DO! 
             //MiuMod.initialiseUntracked ();
     
