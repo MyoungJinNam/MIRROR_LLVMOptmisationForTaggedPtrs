@@ -393,7 +393,6 @@ namespace {
             this->RedundantChks.clear();
         }
 
-        
         virtual void derivePerRegion(std::unordered_set<Value*> & Ptrs) 
         {
             for (auto Ptr : Ptrs) {
@@ -416,9 +415,10 @@ namespace {
         {
             errs()<<"\n--deriveUntrackedPtrs----\n";
             //- TODO: disable some of them for Miu
-            derivePerRegion(Locals);
-            derivePerRegion(GlobalAllocs);
-            derivePerRegion(HeapAllocs);
+            // Untracked by SPP  
+            derivePerRegion (Locals);
+            derivePerRegion (GlobalAllocs);
+            derivePerRegion (HeapAllocs);
         }
         
         virtual void deriveSafePtrs ()
