@@ -151,8 +151,24 @@ namespace {
             return false;
         }
         
+        virtual bool isAllocHookFunc (Function * Fn) 
+        {
+            StringRef Fname = Fn->getName();
+            if (isAllocHookName(Fname)) return true;
+            return false;
+        }
+        
+        virtual bool isAllocCallHook (Instruction * Ins)
+        {
+            if (!isCallHook(Ins)) { return false; }
+            StringRef HookName = cast<CallInst>(Ins)->getCalledFunction()->getName();
+            if (isCheckBoundHookName(HookName)) { return true; }
+            return false; 
+        }
+        
         bool isPMAllocFuncName (StringRef & Str) 
         {
+            //- TODO: name mangling -//
             if (Str.equals(this->PMAllocFuncName)) return true;
             return false;
         }
@@ -172,6 +188,7 @@ namespace {
             if (isCheckBoundHookName(HookName)) { return true; }
             return false; 
         }
+        
         virtual bool isUntagCallHook (Instruction * Ins)
         {
             if (!isCallHook(Ins)) { return false; }
@@ -421,14 +438,18 @@ namespace {
         virtual void deriveTagFreePtrs ()
         {
             for (auto Ptr : TagFreePtrs) {
-                errs()<<"\nPtr: "<<*Ptr<<"  ----- \n";
+                errs()<<"\nTagFreePtr: "<<*Ptr<<"  ----- \n";
                 for (auto User = Ptr->user_begin(); User!=Ptr->user_end(); ++User) {
+                    dbg(errs()<<"  Usr: "<<**User<<"\n");
                     // TODO: Just to check if replacement is correct. 
                     // Refine later.
                     // if the ptr operand (operand(0)) is untracked
-                    if (isa<GetElementPtrInst>(*User)) {
-                        dbg(errs()<<"  Usr: "<<**User<<"\n");
+                    if (isa<GEPOperator>(*User)) {
+                        dbg(errs()<<"   --> add_to_TagFreePtrs\n");
                         TagFreePtrs.insert(*User); 
+                    }
+                    else if () {
+
                     }
                 }
             }
