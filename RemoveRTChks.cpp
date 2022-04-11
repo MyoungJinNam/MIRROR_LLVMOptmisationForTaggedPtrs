@@ -447,19 +447,19 @@ namespace {
                     // TODO: Just to check if replacement is correct. 
                     // Refine later.
                     if (isa<UnaryInstruction>(*User)){
-                        errs()<<"  --> 1. UnaryInstruction\n"; 
+                        errs()<<"    -> 1. UnaryInstruction\n"; 
                         TagFreePtrs.insert(*User);
                     }
                     else if (isa<GEPOperator>(*User)) {
                         Value * GepOpPtrVal = cast<GEPOperator>(*User)->getPointerOperand();
                         //- if the ptr operand (operand(0)) is TagFree -// 
                         if (Ptr == GepOpPtrVal->stripPointerCasts()) { 
-                            errs()<<"  --> 2. ptr_is_GEP's ptrval\n";
+                            errs()<<"    -> 2. ptr_is_GEP's ptrval\n";
                             TagFreePtrs.insert(*User);
                         }
                     }
                     else {
-                        errs()<<"  --> 3. ptr_is_GEP's ptrval\n";
+                        errs()<<"    -> 3_else\n";
                     }
                 }
             }
