@@ -427,6 +427,7 @@ namespace {
                     // Refine later.
                     // if the ptr operand (operand(0)) is untracked
                     if (isa<GetElementPtrInst>(*User)) {
+                        
                         dbg(errs()<<"  Usr: "<<**User<<"\n");
                         TagFreePtrs.insert(*User); 
                     }
