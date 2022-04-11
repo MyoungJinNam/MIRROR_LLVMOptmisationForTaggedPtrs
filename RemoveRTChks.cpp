@@ -437,18 +437,29 @@ namespace {
 
         virtual void deriveTagFreePtrs ()
         {
-            for (auto Ptr : TagFreePtrs) {
+            // TODO: create a queue and perform exhaustively.
+
+            for (auto Elem : TagFreePtrs) {
+                Value * Ptr = Elem->stripPointerCasts();
                 errs()<<"\nTagFreePtr: "<<*Ptr<<"  ----- \n";
                 for (auto User = Ptr->user_begin(); User!=Ptr->user_end(); ++User) {
                     dbg(errs()<<"  Usr: "<<**User<<"\n");
                     // TODO: Just to check if replacement is correct. 
                     // Refine later.
-                    // if the ptr operand (operand(0)) is untracked
-                        
-                    if (isa<GEPOperator>(*User)) {
-                        // TODO: if Ptr is ptr operand
-                        dbg(errs()<<"  Usr: "<<**User<<"\n");
-                        TagFreePtrs.insert(*User); 
+                    if (isa<UnaryInstruction>(*User)){
+                        errs()<<"  --> 1. UnaryInstruction\n"; 
+                        TagFreePtrs.insert(*User);
+                    }
+                    else if (isa<GEPOperator>(*User)) {
+                        Value * GepOpPtrVal = cast<GEPOperator>(*User)->getPointerOperand();
+                        //- if the ptr operand (operand(0)) is TagFree -// 
+                        if (Ptr == GepOpPtrVal->stripPointerCasts()) { 
+                            errs()<<"  --> 2. ptr_is_GEP's ptrval\n";
+                            TagFreePtrs.insert(*User);
+                        }
+                    }
+                    else {
+                        errs()<<"  --> 3. ptr_is_GEP's ptrval\n";
                     }
                 }
             }
