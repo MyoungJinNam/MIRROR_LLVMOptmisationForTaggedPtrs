@@ -228,7 +228,7 @@ namespace {
         std::unordered_set <Value*> TagFreePtrs;
         std::unordered_set <Value*> SafePtrs;
         
-        std::queue <Vallue*> PtrQ;
+        std::queue <Value*> PtrQ;
         
         std::vector<Instruction*> RedundantChks;
       
