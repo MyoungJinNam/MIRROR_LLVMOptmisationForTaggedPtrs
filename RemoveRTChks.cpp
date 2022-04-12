@@ -442,7 +442,9 @@ namespace {
                 PtrQ.pop();
                 TagFreePtrs.insert(Ptr);
                 
-                errs()<<"\nTagFreePtr: "<<*Ptr<<"  ----- \n";
+                errs()<<"\n";
+                errs()<<"TagFreePtr: "<<*Ptr<<"  ----- \n";
+                
                 // TODO: confusing. should strip or not?
                 // Value * Ptr = Elem->stripPointerCasts(); 
 
