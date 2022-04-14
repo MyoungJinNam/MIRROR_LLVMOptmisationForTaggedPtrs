@@ -228,7 +228,6 @@ namespace {
         std::unordered_set <Value*> TagFreePtrs;
         std::unordered_set <Value*> SafePtrs;
         
-        std::queue <Value*> PtrQ;
         
         std::vector<Instruction*> RedundantChks;
       
@@ -250,6 +249,8 @@ namespace {
         std::unordered_set <Value*> GlobalAllocs;
         std::unordered_set <Value*> Locals;
         std::unordered_set <Value*> HeapAllocs;
+        
+        std::queue <Value*> PtrQ;
         
         // Accumulate SafePtrs. Or delete this func..
         virtual bool isSafePtr (Value * Ptr)
@@ -432,76 +433,7 @@ namespace {
             return !(PtrQ.empty()); 
         }
 
-        virtual void deriveTagFreePtrs ()
-        {
-            //- while iterating on queue, add to tagfreeptrs set. -//
 
-            while (!PtrQ.empty()) {
-                
-                Value * Ptr = PtrQ.front(); 
-                PtrQ.pop();
-                TagFreePtrs.insert(Ptr);
-                
-                errs()<<"\n";
-                errs()<<"TagFreePtr: "<<*Ptr<<"  ----- \n";
-                
-                // TODO: confusing. should strip or not?
-                // Value * Ptr = Elem->stripPointerCasts(); 
-
-                for (auto User = Ptr->user_begin(); User!=Ptr->user_end(); ++User) {
-                    dbg(errs()<<"  Usr: "<<**User<<"\n");
-                    // TODO: Just to check if replacement is correct. 
-                    // Refine later.
-                    if (isa<UnaryInstruction>(*User)){
-                        errs()<<"  --> 1. UnaryInstruction\n"; 
-                        //TagFreePtrs.insert(*User);
-                        PtrQ.push(*User);
-                    }
-                    else if (isa<GEPOperator>(*User)) {
-                        Value * GepOpPtrVal = cast<GEPOperator>(*User)->getPointerOperand();
-                        //- if the ptr operand (operand(0)) is TagFree -// 
-                        if (Ptr == GepOpPtrVal->stripPointerCasts()) { 
-                            errs()<<"  --> 2. ptr_is_GEP's ptrval\n";
-                            //TagFreePtrs.insert(*User);
-                            PtrQ.push(*User);
-                        }
-                    }
-                    else {
-                        errs()<<"  --> 3. else\n";
-                    }
-                }
-            } 
-            /*
-            for (auto Elem : TagFreePtrs) {
-                
-                Value * Ptr = Elem->stripPointerCasts();
-                 
-                errs()<<"\nTagFreePtr: "<<*Ptr<<"  ----- \n";
-                for (auto User = Ptr->user_begin(); User!=Ptr->user_end(); ++User) {
-                    dbg(errs()<<"  Usr: "<<**User<<"\n");
-                    // TODO: Just to check if replacement is correct. 
-                    // Refine later.
-                    if (isa<UnaryInstruction>(*User)){
-                        errs()<<"    -> 1. UnaryInstruction\n"; 
-                        TagFreePtrs.insert(*User);
-                    }
-                    else if (isa<GEPOperator>(*User)) {
-                        Value * GepOpPtrVal = cast<GEPOperator>(*User)->getPointerOperand();
-                        //- if the ptr operand (operand(0)) is TagFree -// 
-                        if (Ptr == GepOpPtrVal->stripPointerCasts()) { 
-                            errs()<<"    -> 2. ptr_is_GEP's ptrval\n";
-                            TagFreePtrs.insert(*User);
-                        }
-                    }
-                    else {
-                        errs()<<"    -> 3_else\n";
-                    }
-                }
-            } 
-            */
-            // TODO: DT
-            // TODO: points-to  
-        }
         
         virtual void deriveSafePtrs ()
         {
@@ -604,6 +536,7 @@ namespace {
                 }
             } 
         }
+        virtual void deriveTagFreePtrs (FuncInfoRemRTChks * funcinfo);
 
 
         //- modified: __isSafeAccess in Framer.h.   -// 
@@ -806,8 +739,93 @@ namespace {
             }
             return changed;
         }
-    }; // end of class
-    
+        }; // end of class
+
+        void ModInfoOptRMChks::deriveTagFreePtrs (FuncInfoRemRTChks * FInfo);
+        {
+            //- while iterating on queue, add to tagfreeptrs set. -//
+
+            while (!FInfo->PtrQ.empty()) {
+
+                Value * Ptr = FInfo->PtrQ.front(); 
+                FInfo->PtrQ.pop();
+                
+                if (Ptr->isVoidTy()) {
+                    continue;
+                }
+                FInfo->addTagFreePtr(Ptr);
+                //TagFreePtrs.insert(Ptr);
+
+                errs()<<"\n";
+                errs()<<"TagFreePtr: "<<*Ptr<<"  ----- \n";
+
+                // TODO: confusing. should strip or not?
+                // Value * Ptr = Elem->stripPointerCasts(); 
+
+                for (auto User = Ptr->user_begin(); User!=Ptr->user_end(); ++User) {
+
+                    dbg(errs()<<"  Usr: "<<**User<<"\n");
+
+                    // TODO: Just to check if replacement is correct. 
+                    // Refine later.
+
+                    if (isa<UnaryInstruction>(*User)){
+                        errs()<<"  --> 1. UnaryInstruction\n"; 
+                        //TagFreePtrs.insert(*User);
+                        FInfo->PtrQ.push(*User); // TODO: member func
+                    }
+                    else if (isa<GEPOperator>(*User)) {
+                        
+                        Value * GepOpPtrVal = cast<GEPOperator>(*User)->getPointerOperand();
+                        //- if the ptr operand (operand(0)) is TagFree -// 
+                        
+                        if (Ptr->stripPointerCasts() == GepOpPtrVal->stripPointerCasts()) { 
+                            errs()<<"  --> 2. ptr_is_GEP's ptrval\n";
+                            //TagFreePtrs.insert(*User);
+                            FInfo->PtrQ.push(*User);
+                        }
+                    }
+                    else if (isa<CallInst>(*User)) {
+                        if (isHookCall(*User)) {
+                            FInfo->PtrQ.push(*User);
+                        }
+                    }
+                    else {;}
+                }
+            } 
+            /*
+               for (auto Elem : TagFreePtrs) {
+
+               Value * Ptr = Elem->stripPointerCasts();
+
+               errs()<<"\nTagFreePtr: "<<*Ptr<<"  ----- \n";
+               for (auto User = Ptr->user_begin(); User!=Ptr->user_end(); ++User) {
+               dbg(errs()<<"  Usr: "<<**User<<"\n");
+            // TODO: Just to check if replacement is correct. 
+            // Refine later.
+            if (isa<UnaryInstruction>(*User)){
+            errs()<<"    -> 1. UnaryInstruction\n"; 
+            TagFreePtrs.insert(*User);
+            }
+            else if (isa<GEPOperator>(*User)) {
+            Value * GepOpPtrVal = cast<GEPOperator>(*User)->getPointerOperand();
+            //- if the ptr operand (operand(0)) is TagFree -// 
+            if (Ptr == GepOpPtrVal->stripPointerCasts()) { 
+            errs()<<"    -> 2. ptr_is_GEP's ptrval\n";
+            TagFreePtrs.insert(*User);
+            }
+            }
+            else {
+            errs()<<"    -> 3_else\n";
+            }
+            }
+            } 
+             */
+            // TODO: DT
+            // TODO: points-to  
+        }
+
+
     class Remove_RTChks : public ModulePass {
 
       public:
@@ -880,9 +898,11 @@ namespace {
                 
                 //- Change this func for SPP -// 
                 // TODO: Modify deriveTagFreePtrs for spp
+                // TODO: initTagFreePtrs -> as a ModInfo's member func? 
                 bool hasTagFreePtrs = FInfo.initTagFreePtrs ();
+                
                 if (hasTagFreePtrs) { 
-                    FInfo.deriveTagFreePtrs(); 
+                    MiuMod.deriveTagFreePtrs(&FInfo); 
                 }
                 else { 
                     errs() <<"Warning: No_tag_free_ptrs\n"; 
