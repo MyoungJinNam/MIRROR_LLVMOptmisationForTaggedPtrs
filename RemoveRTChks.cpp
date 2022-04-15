@@ -749,13 +749,15 @@ namespace {
                 Value * Ptr = FInfo->PtrQ.front(); 
                 FInfo->PtrQ.pop();
                 
-                if (Ptr->getType()->isVoidTy()) {
+                errs()<<"\n";
+                errs()<<"TagFreePtr: "<<*Ptr<<"  ----- \n";
+                
+                if (Ptr->user_empty()) {
+                    errs()<<" --> skip_user_empty\n";
                     continue;
                 }
                 FInfo->addTagFreePtr(Ptr);
 
-                errs()<<"\n";
-                errs()<<"TagFreePtr: "<<*Ptr<<"  ----- \n";
 
                 // TODO: confusing. should strip or not?
                 // Value * Ptr = Elem->stripPointerCasts(); 
@@ -795,9 +797,8 @@ namespace {
                             errs()<<"  --> 3. ptr_is_hook_call\n";
                         }
                         //- TODO: Create a list and clean the code? -//
-                        else if (CalleeF->getName().equals("printf")) {
-                            FInfo->PtrQ.push(*User);
-                            errs()<<"  --> 4. func_call_returning_tagfreeptr\n";
+                        else {
+                            errs()<<"  --> skip_call_inst_else_case\n";
                         }
                     }
                     else {
