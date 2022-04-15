@@ -740,7 +740,7 @@ namespace {
         }
         }; // end of class
 
-        void ModInfoOptRMChks::deriveTagFreePtrs (FuncInfoRemRTChks * FInfo);
+        void ModInfoOptRMChks::deriveTagFreePtrs (FuncInfoRemRTChks * FInfo)
         {
             //- while iterating on queue, add to tagfreeptrs set. -//
 
@@ -749,11 +749,10 @@ namespace {
                 Value * Ptr = FInfo->PtrQ.front(); 
                 FInfo->PtrQ.pop();
                 
-                if (Ptr->isVoidTy()) {
+                if (Ptr->getType()->isVoidTy()) {
                     continue;
                 }
                 FInfo->addTagFreePtr(Ptr);
-                //TagFreePtrs.insert(Ptr);
 
                 errs()<<"\n";
                 errs()<<"TagFreePtr: "<<*Ptr<<"  ----- \n";
@@ -785,11 +784,25 @@ namespace {
                         }
                     }
                     else if (isa<CallInst>(*User)) {
-                        if (isHookCall(*User)) {
+                        
+                        CallInst * CI = cast<CallInst>(*User);
+                        Function * CalleeF = CI->getCalledFunction();
+                        if (!CalleeF) continue; 
+                        
+                        if (getHookInfo()->isCallHook(*User)) {
                             FInfo->PtrQ.push(*User);
+                            //- If ptr is untracked, hookcall is also untracked -//
+                            errs()<<"  --> 3. ptr_is_hook_call\n";
+                        }
+                        //- TODO: Create a list and clean the code? -//
+                        else if (CalleeF->getName().equals("printf")) {
+                            FInfo->PtrQ.push(*User);
+                            errs()<<"  --> 4. func_call_returning_tagfreeptr\n";
                         }
                     }
-                    else {;}
+                    else {
+                        errs()<<"  --> skip_else_case\n";
+                    }
                 }
             } 
             /*
@@ -891,7 +904,8 @@ namespace {
                 //- FuncInto instance creation -//
                 FuncInfoRemRTChks FInfo (&*F);
                 FInfo.setTLIWP(TLIWP);
-                FInfo.setHookInfo(&hookinfo);
+                
+                //FInfo.setHookInfo(&hookinfo);
                 
                 // TODO: Modify collectAllocations for spp
                 MiuMod.collectAllocations(&FInfo); 
