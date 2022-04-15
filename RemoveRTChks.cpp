@@ -224,6 +224,7 @@ namespace {
       protected:
         
         //- merging into one 
+        HookInfoMiu * hookinfo = nullptr;
         
         std::unordered_set <Value*> TagFreePtrs;
         std::unordered_set <Value*> SafePtrs;
@@ -250,6 +251,16 @@ namespace {
         std::unordered_set <Value*> GlobalAllocs;
         std::unordered_set <Value*> Locals;
         std::unordered_set <Value*> HeapAllocs;
+        
+        void setHookInfo (HookInfoMiu* HI) 
+        {
+            this->HookInfo = HI; 
+        }
+
+        HookInfoMiu * getHookInfo()
+        {
+            return this->hookinfo; 
+        }
         
         // Accumulate SafePtrs. Or delete this func..
         virtual bool isSafePtr (Value * Ptr)
@@ -440,9 +451,20 @@ namespace {
                 
                 Value * Ptr = PtrQ.front(); 
                 PtrQ.pop();
+                
+                errs()<<"\n_TagFreePtr: "<<*Ptr<<"  ----- \n";
+                
+                if (has_elem_o(TagFreePtrs, Ptr)) {
+                    errs()<<"  --> SKIP_alreayd_inserted\n";
+                    continue;
+                }
+                if (Ptr->getType()->isVoidTy()) {
+                    errs()<<"  --> SKIP_void_type\n";
+                    continue;
+                }
+                
                 TagFreePtrs.insert(Ptr);
                 
-                errs()<<"\nTagFreePtr: "<<*Ptr<<"  ----- \n";
                 // TODO: confusing. should strip or not?
                 // Value * Ptr = Elem->stripPointerCasts(); 
 
@@ -450,8 +472,9 @@ namespace {
                     dbg(errs()<<"  Usr: "<<**User<<"\n");
                     // TODO: Just to check if replacement is correct. 
                     // Refine later.
+                    
                     if (isa<UnaryInstruction>(*User)){
-                        errs()<<"  --> 1. UnaryInstruction\n"; 
+                        //errs()<<"  push--> 1. UnaryInstruction\n"; 
                         //TagFreePtrs.insert(*User);
                         PtrQ.push(*User);
                     }
@@ -459,13 +482,23 @@ namespace {
                         Value * GepOpPtrVal = cast<GEPOperator>(*User)->getPointerOperand();
                         //- if the ptr operand (operand(0)) is TagFree -// 
                         if (Ptr == GepOpPtrVal->stripPointerCasts()) { 
-                            errs()<<"  --> 2. ptr_is_GEP's ptrval\n";
+                            errs()<<"  push--> 2. ptr_is_GEP's ptrval\n";
                             //TagFreePtrs.insert(*User);
+                            PtrQ.push(*User);
+                        }
+                    }
+                    // TODO: pull member function to modinfo? 
+                    else if (isa<CallInst>(*User)) {
+                        if (getHookInfo()->isHookCall(*User)) {
+                            errs()<<"  push--> 3. ptr_is_hook\n";
                             PtrQ.push(*User);
                         }
                     }
                     else {
                         errs()<<"  --> 3. else\n";
+                        // TODO: if callinst and void return ty, skip (no push).
+                        // TODO: miu-specific: LTO - if non-void return, then push 
+                                // TODO: hook? 
                     }
                 }
             } 
@@ -715,7 +748,7 @@ namespace {
                     dbg(errs()<<"   -> not_inst. Addto_Un_tracked. (spp_only!) "<<*Ptr<<"\n";);
                 }
                 if (isUntracked(Ptr) || FI->isTagFreePtr(Ptr)) {
-                    dbg(errs()<<"-> Untracked_ptr. Strip.\n";);
+                    dbg(errs()<<"-> Untracked_ptr_Strip.\n";);
                     FI->stripHook(CI, Ptr);
                 }   
                 //else if (isSafePtr(Ptr) || isSafeAccess(Ptr)) {
@@ -872,6 +905,7 @@ namespace {
                 //- FuncInto instance creation -//
                 FuncInfoRemRTChks FInfo (&*F);
                 FInfo.setTLIWP(TLIWP);
+                FInfo.setHookInfo(&hookinfo);
                 
                 // TODO: Modify collectAllocations for spp
                 MiuMod.collectAllocations(&FInfo); 
@@ -880,7 +914,7 @@ namespace {
                 // TODO: Modify deriveTagFreePtrs for spp
                 bool hasTagFreePtrs = FInfo.initTagFreePtrs ();
                 if (hasTagFreePtrs) { 
-                    FInfo.deriveTagFreePtrs(); 
+                    FInfo.deriveTagFreePtrs(); // pull this mem func to miumod? 
                 }
                 else { 
                     errs() <<"Warning: No_tag_free_ptrs\n"; 
