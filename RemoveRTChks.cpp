@@ -770,8 +770,7 @@ namespace {
                     // Refine later.
 
                     if (isa<UnaryInstruction>(*User)){
-                        errs()<<"  --> 1. UnaryInstruction\n"; 
-                        //TagFreePtrs.insert(*User);
+                        //errs()<<"  --> 1. UnaryInstruction\n"; 
                         FInfo->PtrQ.push(*User); // TODO: member func
                     }
                     else if (isa<GEPOperator>(*User)) {
@@ -780,8 +779,7 @@ namespace {
                         //- if the ptr operand (operand(0)) is TagFree -// 
                         
                         if (Ptr->stripPointerCasts() == GepOpPtrVal->stripPointerCasts()) { 
-                            errs()<<"  --> 2. ptr_is_GEP's ptrval\n";
-                            //TagFreePtrs.insert(*User);
+                            //errs()<<"  --> 2. ptr_is_GEP's ptrval\n";
                             FInfo->PtrQ.push(*User);
                         }
                     }
@@ -794,15 +792,17 @@ namespace {
                         if (getHookInfo()->isCallHook(*User)) {
                             FInfo->PtrQ.push(*User);
                             //- If ptr is untracked, hookcall is also untracked -//
-                            errs()<<"  --> 3. ptr_is_hook_call\n";
+                            //errs()<<"  --> 3. ptr_is_hook_call\n";
                         }
                         //- TODO: Create a list and clean the code? -//
                         else {
-                            errs()<<"  --> skip_call_inst_else_case\n";
+                            errs()<<"  --> skip_CallInst_else_case\n";
                         }
                     }
                     else {
-                        errs()<<"  --> skip_else_case\n";
+                        if (!isa<StoreInst>(*User)) {
+                            errs()<<"  --> skip_else_case\n";
+                        }
                     }
                 }
             } 
