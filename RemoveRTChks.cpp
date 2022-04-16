@@ -89,7 +89,7 @@ namespace {
         return false;
     }
 
-    class HookInfoMiu : public SelfContainedMiuProject::HookInfoAbstract {
+    class HookInfoSPP : public SelfContainedMiuProject::HookInfoAbstract {
       
       protected: 
         
@@ -102,23 +102,18 @@ namespace {
 
       public: 
         //- constructor, destructor -//
-        HookInfoMiu (StringRef & prefix, Module * mod) : SelfContainedMiuProject::HookInfoAbstract (prefix, mod) 
+        HookInfoSPP (StringRef & prefix, Module * mod) : SelfContainedMiuProject::HookInfoAbstract (prefix, mod) 
         {
-            this->ChkBoundHookName = "MIU_checkbound";
-            this->UpdatePtrHookName = "MIU_updatetag";
-            this->UntagHookName = "MIU_cleantag";
-            this->AllocHookName = "MIU_instr_heap_alloc";
+            this->ChkBoundHookName = "__spp_checkbound";
+            this->UpdatePtrHookName = "__spp_updatetag";
+            this->UntagHookName = "__spp_cleantag";
             //- TODO: Handle name mangling. Should I move this to modinfo? 
             this->PMAllocFuncName = "pmemobj_direct_inline";
             
-            //assert(ChkBoundHookName.startswith(Prefix));
-            //assert(UpdatePtrHookName.startswith(Prefix));
-            //assert(UntagHookName.startswith(Prefix));
-            //assert(AllocHookName.startswith(Prefix));
         } 
         
-        virtual ~HookInfoMiu() {
-            errs()<<">> free_HookInfoMiu\n";
+        virtual ~HookInfoSPP() {
+            errs()<<">> free_HookInfoSPP\n";
         }    
         
         virtual StringRef getUntagHookName ()
@@ -224,7 +219,7 @@ namespace {
       protected:
         
         //- merging into one 
-        HookInfoMiu * hookinfo = nullptr;
+        HookInfoSPP * hookinfo = nullptr;
         
         std::unordered_set <Value*> TagFreePtrs;
         std::unordered_set <Value*> SafePtrs;
@@ -468,11 +463,11 @@ namespace {
       
       protected:
         
-        HookInfoMiu * hookinfo = nullptr;
+        HookInfoSPP * hookinfo = nullptr;
        
       public:  
         
-        ModInfoOptRMChks (Module * M, StringRef & prefix, HookInfoMiu * Hookinfo) : SelfContainedMiuProject::ModInfoOpt (M, prefix) 
+        ModInfoOptRMChks (Module * M, StringRef & prefix, HookInfoSPP * Hookinfo) : SelfContainedMiuProject::ModInfoOpt (M, prefix) 
         {
             this->M = M;
             this->CXT = &(M->getContext());
@@ -484,7 +479,7 @@ namespace {
         } 
         virtual ~ModInfoOptRMChks() {}    
         
-        HookInfoMiu * getHookInfo()
+        HookInfoSPP * getHookInfo()
         {
             return this->hookinfo; 
         }
@@ -865,8 +860,8 @@ namespace {
             errs() <<">> RemoveCHKS_BB:: " << SrcFileName <<"\n";
             
             //- "Hook"InfoMiu creation-// 
-            StringRef HookPrefix= "MIU_";
-            HookInfoMiu hookinfo(HookPrefix, &M);  
+            StringRef HookPrefix= "__spp_";
+            HookInfoSPP hookinfo(HookPrefix, &M);  
             
             //-  "Mod"Info instance creatiion -//
             ModInfoOptRMChks MiuMod (&M, HookPrefix, &hookinfo);
