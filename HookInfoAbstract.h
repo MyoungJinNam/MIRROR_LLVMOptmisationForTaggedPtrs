@@ -8,7 +8,6 @@
 #define LLVM_TRANSFORMS_MIUPROJECT_HOOK_INFO_ABSTRACT_MIUPASS_H
 
 #include "llvm/IR/PassManager.h"
-#include "llvm/Transforms/MiuProject/MiuUtils.h"
 
 using namespace llvm;
 using namespace SelfContainedMiuProject;

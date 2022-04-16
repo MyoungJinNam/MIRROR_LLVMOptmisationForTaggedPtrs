@@ -49,6 +49,9 @@
 #include <llvm/Analysis/MemoryBuiltins.h>
 #include <llvm/Analysis/TargetLibraryInfo.h>
 #include <llvm/Analysis/ScalarEvolution.h>
+#include "llvm/Analysis/AliasAnalysis.h"
+#include <llvm/Analysis/TargetLibraryInfo.h>
+#include "llvm/Analysis/CallGraph.h"
 #include <llvm/Analysis/ScalarEvolutionExpressions.h>
 #include <llvm/Analysis/AssumptionCache.h>
 #include <llvm/Analysis/LoopAccessAnalysis.h>
@@ -62,6 +65,7 @@
 #include <iostream>
 #include <map>
 #include <set>
+#include <queue>
 #include <utility>
 #include <tr1/memory>
 #include <tr1/tuple>
@@ -78,9 +82,39 @@ using namespace llvm;
 using namespace SelfContainedMiuProject;
     
 namespace {
+    static int getOpIdx(Instruction* I, Value* Ptr) {
+        for (auto Op = I->op_begin(), OpEnd = I->op_end(); Op != OpEnd; ++Op)   {
+            if (Op->get() == Ptr)
+                return Op->getOperandNo();
+        }
+        return -1;
+    }
     
     template < typename T>
-    static bool has_elem_o (unordered_set<T> & OST, T elem)
+    short getIdx(std::vector<T> & vecOfElements, T element)
+    {
+        short result= -1;
+        // Find given element in vector
+        auto it = find(vecOfElements.begin(), vecOfElements.end(), element);
+
+        if (it != vecOfElements.end())
+        {
+            result = (short)distance(vecOfElements.begin(), it);
+        }
+        return result;
+    }
+
+    template < typename T>
+    bool has_elem (std::vector<T> & vec, T elem)
+    {
+        if (getIdx(vec, elem) < 0) {
+            return false;
+        }
+
+        return true;
+    } 
+    template < typename T>
+    static bool has_elem_o (std::unordered_set<T> & OST, T elem)
     {
         auto it= OST.find(elem);
         if (it != OST.end()) {
@@ -88,7 +122,16 @@ namespace {
         }
         return false;
     }
-
+    
+    template < typename T>
+    void insert_tovec (std::vector<T> & vec, T elem)
+        {
+            if (has_elem(vec, elem)) {
+                return; 
+            }
+            vec.push_back(elem);
+        }
+    
     class HookInfoSPP : public SelfContainedMiuProject::HookInfoAbstract {
       
       protected: 
@@ -314,7 +357,6 @@ namespace {
                         }
                         iUserOfBCI->setOperand(OpIdx, newOp); 
                         dbg(errs()<<"- BCI's newUser:  "<<*iUserOfBCI<<"\n";);
-                        //insert_tovec(RedundantChks, (Instruction*)BCI); //TODO remove dups. MiuUtils
                         this->addRedundantChks((Instruction*)BCI); //TODO remove dups. MiuUtils
                     }
                 }
@@ -327,7 +369,6 @@ namespace {
                     dbg(errs()<<"- Else newUser:  "<<*iUser<<"\n";);
                 }
 
-                //insert_tovec(RedundantChks, (Instruction*)CI);
                 this->addRedundantChks((Instruction*)CI); 
 
             } // end of for loop
@@ -385,7 +426,6 @@ namespace {
                     dbg(errs()<<"- Else newUser:  "<<*iUser<<"\n";)
                 }
 
-                //insert_tovec(RedundantChks, (Instruction*)CI);
             } // end of for loop
         }
 
@@ -648,7 +688,7 @@ namespace {
                     FI->stripHook(CI, Ptr);
                 }   
                 //else if (isSafePtr(Ptr) || isSafeAccess(Ptr)) {
-                else if (isSafePtr(Ptr)) {
+                else if (FI->isSafePtr(Ptr)) {
                     dbg(errs()<<"-> safe_ptr. Replace.\n";);
                     FunctionCallee Rep;
                     StringRef TmpName= getHookInfo()->getUntagHookName(); 
@@ -845,7 +885,7 @@ namespace {
 
             AU.addRequired<DominatorTreeWrapperPass>();
             AU.addRequired<AAResultsWrapperPass>(); 
-            AU.addRequired<CallGraphWrapperPass>(); 
+            //AU.addRequired<CallGraphWrapperPass>(); 
             AU.addRequired<TargetLibraryInfoWrapperPass>();
         }
 

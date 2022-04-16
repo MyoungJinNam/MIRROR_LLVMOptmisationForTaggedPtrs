@@ -34,11 +34,13 @@ namespace SelfContainedMiuProject {
         }
         virtual ~ModInfoOpt() {}
         
-        virtual Value * getInstrumentedPtr (CallInst * CI)
+        /*virtual Value * getInstrumentedPtr (CallInst * CI)
         {
             assert(CI);
             // TODO: Fill it  
         }
+        */
+
         /* Instrment direct function calls to heap alloc (malloc, new etc) */ 
         virtual bool isHookFunc (Function * Func)
         {
