@@ -1,4 +1,4 @@
-//===-----  RemoveRTChks/RemoveRTChks.cpp - Transformation pass -----===//
+//===-----  RemoveRTChks.cpp - Transformation pass -----===//
 //===-----  Copyright © March 2022 by Myoung Jin Nam            -----===//
 //===-----  myoungjin.nam@gmail.com, mjn31@cantab.ac.uk         -----===//
 

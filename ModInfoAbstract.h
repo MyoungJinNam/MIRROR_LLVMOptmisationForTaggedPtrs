@@ -122,7 +122,6 @@ namespace SelfContainedMiuProject {
             this->CXT = &(M->getContext());
             this->DL = &(M->getDataLayout());
             this->GetTLI= GetTLI; 
-            //this->MainPrologueName = "MIU_main_prologue_base";
         }
         /*
         virtual void initialiseModInfo ()
@@ -130,7 +129,6 @@ namespace SelfContainedMiuProject {
             //this->SE = M->SE;
             this->CXT = &(M->getContext());
             this->DL = &(M->getDataLayout());
-            //this->MainPrologueName = "MIU_main_prologue_base";
         }
         
         virtual bool isHookFunc (Function * Func)
