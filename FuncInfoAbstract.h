@@ -1,6 +1,6 @@
-//
-//===-- FunctionInfoAbstract.h - Example Transformations ---------*- C++ -*-===//
-//===--- Copyright © March 2022 by Myoung Jin Nam ---===//
+//===-----  FuncInfoAbstract.h - Transformation pass        -----===//
+//===-----  Copyright © March 2022 by Myoung Jin Nam        -----===//
+//===-----  myoungjin.nam@gmail.com, mjn31@cantab.ac.uk     -----===//
 
 #ifndef LLVM_TRANSFORMS_FUNC_INFO_ABSTRACT_MIUPASS_H
 #define LLVM_TRANSFORMS_FUNC_INFO_ABSTRACT_MIUPASS_H
@@ -57,7 +57,7 @@
 
 using namespace llvm;
 
-namespace MiuProject {
+namespace SelfContainedMiuProject {
 
     class FuncInfoAbstract {
       
@@ -84,6 +84,6 @@ namespace MiuProject {
     };
     
     FuncInfoAbstract::~FuncInfoAbstract() {}
-} // namespace MiuProject 
+} // namespace SelfContainedMiuProject 
 
 #endif //LLVM_TRANSFORMS_FUNC_INFO_MIU_MIUPASS_H

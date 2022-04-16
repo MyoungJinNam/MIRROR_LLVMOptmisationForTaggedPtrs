@@ -1,12 +1,6 @@
-//
-//
-//===-- ModInfoAbstract.h - Example Transformations ------------------*- C++ -*-===//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
+//===-----  RemoveRTChks/ModInfoAbstract.h - Transformation pass    -----===//
+//===-----  Copyright © March 2022 by Myoung Jin Nam                -----===//
+//===-----  myoungjin.nam@gmail.com, mjn31@cantab.ac.uk             -----===//
 
 #ifndef LLVM_TRANSFORMS_MOD_INFO_ABSTRACT_MIUPASS_H
 #define LLVM_TRANSFORMS_MOD_INFO_ABSTRACT_MIUPASS_H
@@ -63,29 +57,40 @@
 
 using namespace llvm;
 
-namespace MiuProject {
+namespace SelfContainedMiuProject {
+
+    template < typename T>
+    static bool has_elem_o (std::unordered_set<T> & OST, T elem)
+    {
+        auto it= OST.find(elem);
+        if (it != OST.end()) {
+            return true;       
+        }
+        return false;
+    }
 
     class ModInfoAbstract {
       
       protected:
         
-        //StringRef MainPrologueName = "";
-        //StringRef Prefix = "";
-
       public:
         
         Module* M = nullptr;
-        TargetLibraryInfo* TLI = nullptr;
-        ScalarEvolution* SE = nullptr;
         LLVMContext * CXT = nullptr;
         const DataLayout *DL;
+        //ScalarEvolution* SE = nullptr;
+        
+        TargetLibraryInfo* TLI = nullptr;
         function_ref<const TargetLibraryInfo &(Function &)> GetTLI;
         
         ModInfoAbstract(Module* M) {
             this->M = M;
+            this->CXT = &(M->getContext());
+            this->DL = &(M->getDataLayout());
         }
         virtual ~ModInfoAbstract() = 0;
         
+        /*
         virtual void resetMainPrologueHook (StringRef & Fname)
         {
             this->MainPrologueName= Fname; 
@@ -93,6 +98,7 @@ namespace MiuProject {
         void setScalarEvolution(ScalarEvolution* SE) {
             this->SE = SE;
         }
+        */
         
         void setLLVMContext(LLVMContext * CXT) {
             this->CXT = CXT;
@@ -109,21 +115,22 @@ namespace MiuProject {
         {
             return &GetTLI(const_cast<Function &>(*FN));
         }
-
+    
         void initialiseModInfo (function_ref<const TargetLibraryInfo &(Function &)> GetTLI) 
         {
             //this->SE = M->SE;
             this->CXT = &(M->getContext());
             this->DL = &(M->getDataLayout());
             this->GetTLI= GetTLI; 
-            this->MainPrologueName = "MIU_main_prologue_base";
+            //this->MainPrologueName = "MIU_main_prologue_base";
         }
+        /*
         virtual void initialiseModInfo ()
         {
             //this->SE = M->SE;
             this->CXT = &(M->getContext());
             this->DL = &(M->getDataLayout());
-            this->MainPrologueName = "MIU_main_prologue_base";
+            //this->MainPrologueName = "MIU_main_prologue_base";
         }
         
         virtual bool isHookFunc (Function * Func)
@@ -134,7 +141,6 @@ namespace MiuProject {
             }
             return false;
         }
-
         virtual bool isCallHook (Value * Val)
         {
             if (!isa<CallInst>(Val)) return false;
@@ -148,6 +154,7 @@ namespace MiuProject {
             }
             return false;
         } 
+        */
 
         virtual bool instrGep(GetElementPtrInst* Gep) {return false;} 
         virtual bool instrumentLoadOrStore(Instruction * I) {return false;} 
@@ -173,6 +180,7 @@ namespace MiuProject {
     };
     
     ModInfoAbstract::~ModInfoAbstract() {}
-} // namespace MiuProject 
+
+} // namespace SelfContainedMiuProject 
 
 #endif //LLVM_TRANSFORMS_MOD_INFO_MIU_MIUPASS_H
