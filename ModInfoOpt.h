@@ -1,4 +1,5 @@
-//===-----  RemoveRTChks/ModInfoOpt.h - Transformation pass  -----===//
+//===-----  RemoveRTChks/ModInfoOpt.h - Transformation pass -----===//
+//===-----  This is a part of MIU/FRAMER project            -----===//
 //===-----  Copyright © March 2022 by Myoung Jin Nam        -----===//
 //===-----  myoungjin.nam@gmail.com, mjn31@cantab.ac.uk     -----===//
 

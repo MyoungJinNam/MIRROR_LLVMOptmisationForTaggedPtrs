@@ -1,3 +1,0 @@
-[submodule "mirror_CustomOptTaggedPtrs"]
-	path = mirror_CustomOptTaggedPtrs
-	url = git@github-MyoungJinNam:MyoungJinNam/MIRROR_LLVMOptmisationForTaggedPtrs.git
