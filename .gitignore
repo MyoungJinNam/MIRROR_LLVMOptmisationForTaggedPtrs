@@ -48,3 +48,11 @@ Thumbs.db
 *.mov
 *.wmv
 
+# temp files
+*.swp
+
+object file
+*.o
+*.a
+*.so
+
