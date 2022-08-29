@@ -50,8 +50,8 @@
 #include <map>
 #include <set>
 #include <utility>
-#include <tr1/memory>
-#include <tr1/tuple>
+//#include <tr1/memory>
+//#include <tr1/tuple>
 #include <assert.h>
 #include <unordered_set>
 

@@ -67,8 +67,8 @@
 #include <set>
 #include <queue>
 #include <utility>
-#include <tr1/memory>
-#include <tr1/tuple>
+//#include <tr1/memory>
+//#include <tr1/tuple>
 #include <assert.h>
 
 #define MIU_PRINT_DEBUG
